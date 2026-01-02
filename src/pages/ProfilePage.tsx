@@ -1,0 +1,952 @@
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { styled } from '@mui/material/styles';
+import {
+  Container,
+  Typography,
+  Box,
+  Avatar,
+  Button,
+  IconButton,
+  Tabs,
+  Tab,
+  Skeleton,
+  Chip,
+} from '@mui/material';
+import {
+  Home as HomeIcon,
+  Share as ShareIcon,
+  Edit as EditIcon,
+  People as PeopleIcon,
+} from '@mui/icons-material';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  ResourceListDisplay,
+  LoaderListStatus,
+  useGlobal,
+  showError,
+  showSuccess,
+} from 'qapp-core';
+import {
+  ENTITY_ARTICLE,
+  ENTITY_EPISODE,
+  ENTITY_ROOT,
+  GROUP_PRIVATE_ARTICLE,
+  GROUP_PRIVATE_EPISODE,
+} from '../utils/articleQdn';
+import { ArticleCard } from '../components/ArticleCard';
+import { copyToClipboard } from '../utils/clipboard';
+import { useFetchProfile } from '../hooks/useFetchProfile';
+import { useGroupDetails } from '../hooks/useGroupDetails';
+import { EditProfileModal } from '../components/EditProfileModal';
+import { useAtom } from 'jotai';
+import { profileDataAtom, profileNameAtom } from '../state/global/profile';
+
+// Minimal header with just a home button
+const MinimalHeader = styled(Box)(({ theme }) => ({
+  position: 'fixed',
+  top: theme.spacing(2),
+  left: theme.spacing(2),
+  zIndex: 100,
+}));
+
+const HomeButton = styled(IconButton)(({ theme }) => ({
+  backgroundColor: theme.palette.background.paper,
+  boxShadow:
+    theme.palette.mode === 'light'
+      ? '0 2px 8px rgba(0, 0, 0, 0.1)'
+      : '0 2px 8px rgba(0, 0, 0, 0.4)',
+  '&:hover': {
+    backgroundColor: theme.palette.background.paper,
+    transform: 'scale(1.05)',
+    boxShadow:
+      theme.palette.mode === 'light'
+        ? '0 4px 12px rgba(0, 0, 0, 0.15)'
+        : '0 4px 12px rgba(0, 0, 0, 0.6)',
+  },
+  transition: 'all 0.2s ease',
+}));
+
+// Hero section with author info
+const HeroSection = styled(Box)(({ theme }) => ({
+  minHeight: 400,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  background:
+    theme.palette.mode === 'light'
+      ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+      : 'linear-gradient(135deg, #4c5fd7 0%, #5a3a7e 100%)',
+  position: 'relative',
+  overflow: 'hidden',
+  paddingTop: theme.spacing(8),
+  paddingBottom: theme.spacing(8),
+  '&::before': {
+    content: '""',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background:
+      'radial-gradient(circle at 30% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 60%)',
+    pointerEvents: 'none',
+  },
+}));
+
+const HeroContent = styled(Box)({
+  position: 'relative',
+  zIndex: 1,
+  textAlign: 'center',
+  color: 'white',
+});
+
+const StyledAvatar = styled(Avatar)(({ theme }) => ({
+  width: 120,
+  height: 120,
+  margin: '0 auto',
+  marginBottom: theme.spacing(3),
+  border: '4px solid rgba(255, 255, 255, 0.3)',
+  fontSize: '3rem',
+  fontWeight: 700,
+  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+}));
+
+const ContentSection = styled(Box)(({ theme }) => ({
+  marginTop: theme.spacing(-6),
+  position: 'relative',
+  zIndex: 2,
+}));
+
+const ContentContainer = styled(Container)(({ theme }) => ({
+  backgroundColor: theme.palette.background.paper,
+  borderRadius: '24px 24px 0 0',
+  minHeight: '60vh',
+  paddingTop: theme.spacing(4),
+  paddingBottom: theme.spacing(8),
+  boxShadow:
+    theme.palette.mode === 'light'
+      ? '0 -4px 24px rgba(0, 0, 0, 0.08)'
+      : '0 -4px 24px rgba(0, 0, 0, 0.4)',
+}));
+
+const EmptyState = styled(Box)(({ theme }) => ({
+  textAlign: 'center',
+  padding: theme.spacing(8, 2),
+  color: theme.palette.text.secondary,
+}));
+
+const SubscriberChip = styled(Chip)(({ theme }) => ({
+  backgroundColor:
+    theme.palette.mode === 'dark'
+      ? 'rgba(255, 255, 255, 0.15)'
+      : 'rgba(0, 0, 0, 0.08)',
+  color: theme.palette.text.primary,
+  fontWeight: 600,
+  fontSize: '0.9rem',
+  padding: theme.spacing(0.5, 1),
+  height: 'auto',
+  '& .MuiChip-icon': {
+    color: theme.palette.primary.main,
+  },
+}));
+
+export const ProfilePage = () => {
+  const navigate = useNavigate();
+  const { name } = useParams<{ name: string }>();
+  const { auth, identifierOperations } = useGlobal();
+  const [currentTab, setCurrentTab] = useState(0);
+  const [episodeSearchPrefix, setEpisodeSearchPrefix] = useState<string | null>(
+    null
+  );
+  const [encryptedArticlePrefix, setEncryptedArticlePrefix] = useState<
+    string | null
+  >(null);
+  const [encryptedEpisodePrefix, setEncryptedEpisodePrefix] = useState<
+    string | null
+  >(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // State to control when to show the list (wait for profile groupId check)
+  const [isReadyToShowList, setIsReadyToShowList] = useState(false);
+
+  // Check if this is the logged-in user's profile
+  const isOwnProfile = auth?.name === name;
+
+  // Get global profile data for own profile
+  const [globalProfileData] = useAtom(profileDataAtom);
+  const [profileName] = useAtom(profileNameAtom);
+
+  // Fetch profile data for other users (or own profile if not in global state)
+  const { profile: fetchedProfile, refetch } = useFetchProfile(name || '');
+
+  // Use global state for own profile if it matches, otherwise use fetched profile
+  const profile =
+    isOwnProfile && profileName === name ? globalProfileData : fetchedProfile;
+
+  // Fetch group details if profile has a group attached
+  const { groupDetails, isLoading: isLoadingGroup } = useGroupDetails(
+    profile?.groupId
+  );
+
+  // Get avatar URL
+  const avatarUrl = name
+    ? `/arbitrary/THUMBNAIL/${name}/qortal_avatar?async=true`
+    : undefined;
+
+  // Handle modal close with refetch
+  const handleModalClose = useCallback(() => {
+    setIsEditModalOpen(false);
+    // Refetch profile to get latest data from QDN
+    if (!isOwnProfile) {
+      refetch();
+    }
+  }, [isOwnProfile, refetch]);
+
+  // Handle share button
+  const handleShare = useCallback(async () => {
+    try {
+      if (!name) {
+        showError('Failed to copy link. Please try again. Missing user name.');
+        return;
+      }
+      const profileUrl = `qortal://APP/Perennial/author/${encodeURIComponent(name)}`;
+      await copyToClipboard(profileUrl);
+      showSuccess('Profile link copied to clipboard!');
+    } catch (error) {
+      console.error('Error copying to clipboard:', error);
+      showError('Failed to copy link. Please try again.');
+    }
+  }, [name]);
+
+  // Wait up to 3 seconds for profile to load before showing the list
+  // This ensures encrypted content is included from the start if available
+  useEffect(() => {
+    // Reset when name changes
+    setIsReadyToShowList(false);
+
+    // Set up 3-second timeout
+    const timeout = setTimeout(() => {
+      setIsReadyToShowList(true);
+    }, 3000);
+
+    // If we get a profile (with or without groupId), we can show the list immediately
+    const checkProfile = () => {
+      const currentProfile =
+        isOwnProfile && profileName === name
+          ? globalProfileData
+          : fetchedProfile;
+
+      if (currentProfile !== null && currentProfile !== undefined) {
+        clearTimeout(timeout);
+        setIsReadyToShowList(true);
+      }
+    };
+
+    checkProfile();
+
+    // Cleanup timeout on unmount or name change
+    return () => clearTimeout(timeout);
+  }, [name, isOwnProfile, profileName, globalProfileData, fetchedProfile]);
+
+  // Build the episode search prefix
+  useEffect(() => {
+    const buildPrefix = async () => {
+      if (!identifierOperations) return;
+
+      try {
+        const episodePrefix = await identifierOperations.buildSearchPrefix(
+          ENTITY_EPISODE,
+          ENTITY_ROOT
+        );
+        setEpisodeSearchPrefix(episodePrefix);
+      } catch (error) {
+        console.error('Failed to build episode search prefix:', error);
+      }
+    };
+
+    buildPrefix();
+  }, [identifierOperations]);
+
+  // Build encrypted article/episode search prefixes if a groupId is available
+  // This runs independently and doesn't block the main content loading
+  useEffect(() => {
+    const buildEncryptedPrefixes = async () => {
+      if (!identifierOperations || !name) {
+        return;
+      }
+
+      // Try to get groupId from either source
+      // For own profile: use globalProfileData if available (loads faster)
+      // For other profiles: use fetchedProfile when it loads
+      const groupId = isOwnProfile
+        ? globalProfileData?.groupId
+        : fetchedProfile?.groupId;
+
+      if (!groupId) {
+        // No group attached - clear any existing prefixes
+        setEncryptedArticlePrefix(null);
+        setEncryptedEpisodePrefix(null);
+        return;
+      }
+
+      try {
+        // Build prefix for encrypted articles
+        const encryptedArticlePfx =
+          await identifierOperations.buildSearchPrefix(
+            groupId.toString(),
+            '',
+            GROUP_PRIVATE_ARTICLE
+          );
+        setEncryptedArticlePrefix(encryptedArticlePfx);
+
+        // Build prefix for encrypted episodes
+        const encryptedEpisodePfx =
+          await identifierOperations.buildSearchPrefix(
+            groupId.toString(),
+            '',
+            GROUP_PRIVATE_EPISODE
+          );
+        setEncryptedEpisodePrefix(encryptedEpisodePfx);
+      } catch (error) {
+        console.error('Failed to build encrypted search prefixes:', error);
+      }
+    };
+
+    buildEncryptedPrefixes();
+  }, [
+    identifierOperations,
+    name,
+    isOwnProfile,
+    globalProfileData?.groupId,
+    fetchedProfile?.groupId,
+  ]);
+
+  // Search params for articles
+  const articlesSearch = useMemo(() => {
+    return {
+      service: 'DOCUMENT' as any,
+      name: name || '',
+      identifier: '',
+      limit: 20,
+      reverse: true,
+    };
+  }, [name]);
+
+  // Search params for episodes
+  const episodesSearch = useMemo(() => {
+    return {
+      service: 'DOCUMENT' as any,
+      name: name || '',
+      identifier: '',
+      limit: 20,
+      reverse: true,
+    };
+  }, [name]);
+
+  // Secondary data sources for "All" tab - includes episodes and all encrypted content
+  const allTabSecondaryDataSources = useMemo((): any[] | undefined => {
+    if (!name) return undefined;
+
+    const sources: any[] = [];
+
+    // Add public episodes
+    if (episodeSearchPrefix) {
+      sources.push({
+        params: {
+          service: 'DOCUMENT',
+          name: name,
+          identifier: episodeSearchPrefix,
+          reverse: true,
+          prefix: true,
+        },
+      });
+    }
+
+    // Add encrypted articles (if prefix is available, meaning groupId exists)
+    if (encryptedArticlePrefix) {
+      sources.push({
+        params: {
+          service: 'DOCUMENT',
+          name: name,
+          identifier: encryptedArticlePrefix,
+          reverse: true,
+          prefix: true,
+        },
+      });
+    }
+
+    // Add encrypted episodes (if prefix is available, meaning groupId exists)
+    if (encryptedEpisodePrefix) {
+      sources.push({
+        params: {
+          service: 'DOCUMENT',
+          name: name,
+          identifier: encryptedEpisodePrefix,
+          reverse: true,
+          prefix: true,
+        },
+      });
+    }
+
+    return sources.length > 0 ? sources : undefined;
+  }, [
+    episodeSearchPrefix,
+    encryptedArticlePrefix,
+    encryptedEpisodePrefix,
+    name,
+  ]);
+
+  // Secondary data sources for "Essays" tab - only encrypted articles
+  const essaysTabSecondaryDataSources = useMemo((): any[] | undefined => {
+    if (!name || !encryptedArticlePrefix) return undefined;
+
+    return [
+      {
+        params: {
+          service: 'DOCUMENT',
+          name: name,
+          identifier: encryptedArticlePrefix,
+          reverse: true,
+          prefix: true,
+        },
+      },
+    ];
+  }, [encryptedArticlePrefix, name]);
+
+  // Secondary data sources for "Episodes" tab - only encrypted episodes
+  const episodesTabSecondaryDataSources = useMemo((): any[] | undefined => {
+    if (!name || !encryptedEpisodePrefix) return undefined;
+
+    return [
+      {
+        params: {
+          service: 'DOCUMENT',
+          name: name,
+          identifier: encryptedEpisodePrefix,
+          reverse: true,
+          prefix: true,
+        },
+      },
+    ];
+  }, [encryptedEpisodePrefix, name]);
+
+  // Render article card
+  const renderArticle = useCallback((article: any) => {
+    // Log the article structure to debug
+    if (!article.data) {
+      console.warn('Article missing data:', {
+        identifier: article.qortalMetadata?.identifier,
+        name: article.qortalMetadata?.name,
+        hasData: !!article.data,
+        article: article,
+      });
+    }
+
+    return (
+      <ArticleCard
+        key={article.qortalMetadata?.identifier}
+        qortalMetadata={article.qortalMetadata}
+        data={article.data}
+      />
+    );
+  }, []);
+
+  // Loader item for skeleton
+  const loaderItem = useCallback(() => {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'row',
+          gap: 0,
+          width: '100%',
+          height: 200,
+          minHeight: 200,
+          maxHeight: 200,
+          border: (theme) => `1px solid ${theme.palette.divider}`,
+          borderRadius: 3,
+          overflow: 'hidden',
+          backgroundColor: (theme) => theme.palette.background.paper,
+        }}
+      >
+        {/* Cover image skeleton - left side */}
+        <Skeleton
+          variant="rectangular"
+          width={160}
+          height={200}
+          sx={{ flexShrink: 0 }}
+        />
+
+        {/* Content - right side */}
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
+            p: 2.5,
+            flex: 1,
+            justifyContent: 'space-between',
+          }}
+        >
+          {/* Title */}
+          <Skeleton variant="text" height={24} width="90%" />
+
+          {/* Subtitle */}
+          <Box>
+            <Skeleton variant="text" height={16} width="100%" />
+            <Skeleton variant="text" height={16} width="80%" />
+          </Box>
+
+          {/* Tags */}
+          <Box sx={{ display: 'flex', gap: 0.5 }}>
+            <Skeleton
+              variant="rectangular"
+              width={60}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="rectangular"
+              width={70}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+            <Skeleton
+              variant="rectangular"
+              width={50}
+              height={22}
+              sx={{ borderRadius: 1 }}
+            />
+          </Box>
+
+          {/* Author section */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Skeleton variant="circular" width={32} height={32} />
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+              <Skeleton variant="text" height={14} width={100} />
+              <Skeleton variant="text" height={12} width={80} />
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    );
+  }, []);
+
+  // Loader list for different states
+  const loaderList = useCallback(
+    (status: LoaderListStatus) => {
+      if (status === 'NO_RESULTS') {
+        return (
+          <EmptyState>
+            <Typography variant="h5" fontWeight={600} gutterBottom>
+              No articles yet
+            </Typography>
+            <Typography variant="body1">
+              {isOwnProfile
+                ? 'Start writing your first article!'
+                : `${name} hasn't published any articles yet.`}
+            </Typography>
+            {isOwnProfile && (
+              <Button
+                variant="contained"
+                onClick={() => navigate('/write')}
+                sx={{ mt: 3, textTransform: 'none' }}
+              >
+                Write Your First Article
+              </Button>
+            )}
+          </EmptyState>
+        );
+      }
+
+      // Loading state or error state
+      return (
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 2,
+          }}
+        >
+          {[1, 2, 3].map((i) => (
+            <Box key={i}>{loaderItem()}</Box>
+          ))}
+        </Box>
+      );
+    },
+    [isOwnProfile, name, navigate, loaderItem]
+  );
+
+  return (
+    <>
+      {/* Minimal header with just home button */}
+      <MinimalHeader>
+        <HomeButton onClick={() => navigate('/')} size="large">
+          <HomeIcon />
+        </HomeButton>
+      </MinimalHeader>
+
+      {/* Hero section with author info */}
+      <HeroSection
+        sx={{
+          backgroundImage: profile?.coverImage
+            ? `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${profile.coverImage})`
+            : undefined,
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+        }}
+      >
+        <HeroContent>
+          <StyledAvatar src={avatarUrl} alt={name}>
+            {name?.charAt(0).toUpperCase()}
+          </StyledAvatar>
+          <Typography
+            variant="h2"
+            fontWeight={700}
+            gutterBottom
+            sx={{
+              fontSize: { xs: '2rem', md: '3rem' },
+              textShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+            }}
+          >
+            {name}
+          </Typography>
+          <Typography
+            variant="h6"
+            sx={{
+              opacity: 0.9,
+              maxWidth: 600,
+              margin: '0 auto',
+              px: 2,
+            }}
+          >
+            {profile?.bio || ''}
+          </Typography>
+
+          {/* Subscriber count */}
+          {groupDetails && groupDetails.memberCount !== undefined && (
+            <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
+              {isLoadingGroup ? (
+                <Skeleton
+                  variant="rectangular"
+                  width={180}
+                  height={32}
+                  sx={{ borderRadius: 2 }}
+                />
+              ) : (
+                <SubscriberChip
+                  icon={<PeopleIcon />}
+                  label={`${groupDetails.memberCount} ${groupDetails.memberCount === 1 ? 'Subscriber' : 'Subscribers'}`}
+                />
+              )}
+            </Box>
+          )}
+
+          <Box
+            sx={{ display: 'flex', gap: 2, mt: 3, justifyContent: 'center' }}
+          >
+            {isOwnProfile && (
+              <>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate('/write')}
+                  sx={{
+                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                    backdropFilter: 'blur(10px)',
+                    color: 'white',
+                    borderRadius: 2,
+                    px: 4,
+                    py: 1.5,
+                    fontSize: '1rem',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                  }}
+                >
+                  New Article
+                </Button>
+                <Button
+                  variant="outlined"
+                  onClick={() => setIsEditModalOpen(true)}
+                  startIcon={<EditIcon />}
+                  sx={{
+                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                    backdropFilter: 'blur(10px)',
+                    color: 'white',
+                    borderRadius: 2,
+                    px: 3,
+                    py: 1.5,
+                    fontSize: '1rem',
+                    textTransform: 'none',
+                    fontWeight: 600,
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                      border: '1px solid rgba(255, 255, 255, 0.3)',
+                    },
+                  }}
+                >
+                  Edit Profile
+                </Button>
+              </>
+            )}
+            <IconButton
+              onClick={handleShare}
+              sx={{
+                color: 'white',
+                bgcolor: 'rgba(255, 255, 255, 0.2)',
+                backdropFilter: 'blur(10px)',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                '&:hover': {
+                  bgcolor: 'rgba(255, 255, 255, 0.3)',
+                },
+              }}
+            >
+              <ShareIcon />
+            </IconButton>
+          </Box>
+        </HeroContent>
+      </HeroSection>
+
+      {/* Content section */}
+      <ContentSection>
+        <ContentContainer maxWidth="lg">
+          {/* Tabs for different content types */}
+          <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 4 }}>
+            <Tabs
+              value={currentTab}
+              onChange={(_, newValue) => setCurrentTab(newValue)}
+              sx={{
+                '& .MuiTab-root': {
+                  textTransform: 'none',
+                  fontSize: '1rem',
+                  fontWeight: 600,
+                },
+              }}
+            >
+              <Tab label="All" />
+              <Tab label="Essays" />
+              <Tab label="Episodes" />
+              <Tab label="About" />
+            </Tabs>
+          </Box>
+
+          {/* All Tab */}
+          {currentTab === 0 && (
+            <>
+              {!episodeSearchPrefix || !isReadyToShowList ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: 4,
+                  }}
+                >
+                  {loaderItem()}
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    maxWidth: 900,
+                    margin: '0 auto',
+                    width: '100%',
+                  }}
+                >
+                  <ResourceListDisplay
+                    styles={{
+                      gap: 24,
+                    }}
+                    retryAttempts={3}
+                    listName={`user-all-${name}`}
+                    direction="VERTICAL"
+                    disableVirtualization
+                    returnType="JSON"
+                    loaderList={loaderList}
+                    entityParams={{
+                      entityType: ENTITY_ARTICLE,
+                      parentId: ENTITY_ROOT,
+                    }}
+                    search={articlesSearch}
+                    listItem={renderArticle}
+                    loaderItem={loaderItem}
+                    secondaryDataSources={allTabSecondaryDataSources}
+                  />
+                </Box>
+              )}
+            </>
+          )}
+
+          {/* Essays Tab */}
+          {currentTab === 1 && (
+            <>
+              {!isReadyToShowList ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: 4,
+                  }}
+                >
+                  {loaderItem()}
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    maxWidth: 900,
+                    margin: '0 auto',
+                    width: '100%',
+                  }}
+                >
+                  <ResourceListDisplay
+                    styles={{
+                      gap: 24,
+                    }}
+                    retryAttempts={3}
+                    listName={`user-essays-${name}`}
+                    direction="VERTICAL"
+                    disableVirtualization
+                    returnType="JSON"
+                    loaderList={loaderList}
+                    entityParams={{
+                      entityType: ENTITY_ARTICLE,
+                      parentId: ENTITY_ROOT,
+                    }}
+                    search={articlesSearch}
+                    listItem={renderArticle}
+                    loaderItem={loaderItem}
+                    secondaryDataSources={essaysTabSecondaryDataSources}
+                  />
+                </Box>
+              )}
+            </>
+          )}
+
+          {/* Episodes Tab */}
+          {currentTab === 2 && (
+            <>
+              {!isReadyToShowList ? (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    padding: 4,
+                  }}
+                >
+                  {loaderItem()}
+                </Box>
+              ) : (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 2,
+                    maxWidth: 900,
+                    margin: '0 auto',
+                    width: '100%',
+                  }}
+                >
+                  <ResourceListDisplay
+                    styles={{
+                      gap: 24,
+                    }}
+                    retryAttempts={3}
+                    listName={`user-episodes-${name}`}
+                    direction="VERTICAL"
+                    disableVirtualization
+                    returnType="JSON"
+                    loaderList={(status: LoaderListStatus) => {
+                      if (status === 'NO_RESULTS') {
+                        return (
+                          <EmptyState>
+                            <Typography
+                              variant="h5"
+                              fontWeight={600}
+                              gutterBottom
+                            >
+                              No episodes yet
+                            </Typography>
+                            <Typography variant="body1">
+                              {isOwnProfile
+                                ? 'Create your first episode!'
+                                : `${name} hasn't published any episodes yet.`}
+                            </Typography>
+                            {isOwnProfile && (
+                              <Button
+                                variant="contained"
+                                onClick={() => navigate('/write/episode')}
+                                sx={{ mt: 3, textTransform: 'none' }}
+                              >
+                                Create Your First Episode
+                              </Button>
+                            )}
+                          </EmptyState>
+                        );
+                      }
+                      // Loading state or error state
+                      return (
+                        <Box
+                          sx={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: 2,
+                          }}
+                        >
+                          {[1, 2, 3].map((i) => (
+                            <Box key={i}>{loaderItem()}</Box>
+                          ))}
+                        </Box>
+                      );
+                    }}
+                    entityParams={{
+                      entityType: ENTITY_EPISODE,
+                      parentId: ENTITY_ROOT,
+                    }}
+                    search={episodesSearch}
+                    listItem={renderArticle}
+                    loaderItem={loaderItem}
+                    secondaryDataSources={episodesTabSecondaryDataSources}
+                  />
+                </Box>
+              )}
+            </>
+          )}
+
+          {/* About Tab */}
+          {currentTab === 3 && (
+            <Box sx={{ maxWidth: 680, margin: '0 auto', py: 4 }}>
+              <Typography variant="h4" fontWeight={700} gutterBottom>
+                About {name}
+              </Typography>
+              <Typography variant="body1" sx={{ lineHeight: 1.8, mt: 3 }}>
+                {profile?.bio ||
+                  `This is ${name}'s personal space on Perennial. Check back for new articles and updates.`}
+              </Typography>
+            </Box>
+          )}
+        </ContentContainer>
+      </ContentSection>
+
+      {/* Edit Profile Modal */}
+      {isOwnProfile && (
+        <EditProfileModal
+          open={isEditModalOpen}
+          onClose={handleModalClose}
+          currentProfile={profile || undefined}
+        />
+      )}
+    </>
+  );
+};
