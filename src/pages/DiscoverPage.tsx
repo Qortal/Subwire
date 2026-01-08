@@ -826,7 +826,6 @@ export const DiscoverPage = () => {
                   width: '100%',
                 }}
               >
-                {/* @ts-expect-error - ResourceListDisplay type issue from qapp-core library */}
                 <ResourceListDisplay
                   styles={{
                     gap: 20,

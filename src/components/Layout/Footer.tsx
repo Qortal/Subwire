@@ -1,5 +1,5 @@
 import { styled } from '@mui/material/styles';
-import { Box, Container, Typography, Link, Grid } from '@mui/material';
+import { Box, Container, Typography, Link } from '@mui/material';
 import {
   Twitter as TwitterIcon,
   Facebook as FacebookIcon,
@@ -37,8 +37,16 @@ export const Footer = () => {
   return (
     <FooterContainer>
       <Container maxWidth="lg">
-        <Grid container spacing={4}>
-          <Grid item xs={12} sm={6} md={3}>
+        <Box sx={{
+          display: 'grid',
+          gridTemplateColumns: {
+            xs: '1fr',
+            sm: 'repeat(2, 1fr)',
+            md: 'repeat(5, 1fr)'
+          },
+          gap: 4
+        }}>
+          <Box>
             <Typography variant="h6" gutterBottom fontWeight={600}>
               Perennial
             </Typography>
@@ -46,9 +54,9 @@ export const Footer = () => {
               A home for writers and readers. Share your thoughts and discover
               amazing stories.
             </Typography>
-          </Grid>
+          </Box>
 
-          <Grid item xs={6} sm={3} md={2}>
+          <Box>
             <Typography variant="subtitle2" fontWeight={600} gutterBottom>
               Product
             </Typography>
@@ -58,9 +66,9 @@ export const Footer = () => {
               <FooterLink href="/pricing">Pricing</FooterLink>
               <FooterLink href="/features">Features</FooterLink>
             </Box>
-          </Grid>
+          </Box>
 
-          <Grid item xs={6} sm={3} md={2}>
+          <Box>
             <Typography variant="subtitle2" fontWeight={600} gutterBottom>
               Company
             </Typography>
@@ -70,9 +78,9 @@ export const Footer = () => {
               <FooterLink href="/careers">Careers</FooterLink>
               <FooterLink href="/contact">Contact</FooterLink>
             </Box>
-          </Grid>
+          </Box>
 
-          <Grid item xs={6} sm={3} md={2}>
+          <Box>
             <Typography variant="subtitle2" fontWeight={600} gutterBottom>
               Resources
             </Typography>
@@ -82,9 +90,9 @@ export const Footer = () => {
               <FooterLink href="/terms">Terms</FooterLink>
               <FooterLink href="/privacy">Privacy</FooterLink>
             </Box>
-          </Grid>
+          </Box>
 
-          <Grid item xs={6} sm={3} md={3}>
+          <Box>
             <Typography variant="subtitle2" fontWeight={600} gutterBottom>
               Connect
             </Typography>
@@ -102,8 +110,8 @@ export const Footer = () => {
                 <LinkedInIcon />
               </SocialIcon>
             </Box>
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
 
         <Box
           sx={{
@@ -122,4 +130,3 @@ export const Footer = () => {
     </FooterContainer>
   );
 };
-

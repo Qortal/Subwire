@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
+import { useSetAtom } from 'jotai';
 import { useGlobal } from 'qapp-core';
 import {
   hasProfileAtom,

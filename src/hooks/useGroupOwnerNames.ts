@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useAtom, useSetAtom } from 'jotai';
+import { useSetAtom } from 'jotai';
 import { useGlobal } from 'qapp-core';
 import {
   groupOwnerPrimaryNamesAtom,
@@ -19,10 +19,8 @@ import {
  */
 export function useGroupOwnerNames() {
   const { auth } = useGlobal();
-  const [groupOwnerNames, setGroupOwnerNames] = useAtom(
-    groupOwnerPrimaryNamesAtom
-  );
-  const [isLoading, setIsLoading] = useAtom(isLoadingGroupOwnerNamesAtom);
+  const setGroupOwnerNames = useSetAtom(groupOwnerPrimaryNamesAtom);
+  const setIsLoading = useSetAtom(isLoadingGroupOwnerNamesAtom);
   const setMemberGroups = useSetAtom(memberGroupsAtom);
 
   useEffect(() => {

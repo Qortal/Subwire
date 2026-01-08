@@ -1,6 +1,5 @@
 import { styled } from '@mui/material/styles';
 import {
-  Container,
   Typography,
   Box,
   Card,
@@ -8,10 +7,7 @@ import {
   CardActionArea,
   Alert,
   List,
-  ListItem,
-  ListItemText,
   IconButton,
-  Divider,
   Chip,
 } from '@mui/material';
 import {
@@ -34,7 +30,7 @@ const PageContainer = styled(Box)(({ theme }) => ({
   backgroundColor: theme.palette.background.default,
 }));
 
-const ContentWrapper = styled(Box)(({ theme }) => ({
+const ContentWrapper = styled(Box)(() => ({
   maxWidth: 800,
   width: '100%',
   textAlign: 'center',

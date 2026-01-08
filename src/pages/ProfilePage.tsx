@@ -869,7 +869,7 @@ export const ProfilePage = () => {
                             action: 'OPEN_NEW_TAB',
                             qortalLink: useTestIdentifiers
                               ? `qortal://APP/a-test/subscription/test-subscription-${profile?.groupId?.toString()}`
-                              : `qortal://APP/a-test/subscription/subscription-${profile?.groupId?.toString()}`,
+                              : `qortal://APP/Subscriptions/subscription/subscription-${profile?.groupId?.toString()}`,
                           });
                         }}
                         disabled={subscriptionLoading || isOwner}

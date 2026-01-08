@@ -74,24 +74,24 @@ const StyledDialogContent = styled(DialogContent)(({ theme }) => ({
   maxHeight: '70vh',
 }));
 
-const VideoPreviewContainer = styled(Box)(({ theme }) => ({
-  width: '100%',
-  height: '300px',
-  borderRadius: theme.spacing(2),
-  overflow: 'hidden',
-  backgroundColor: theme.palette.background.default,
-  border: `2px solid ${theme.palette.divider}`,
-  boxShadow:
-    theme.palette.mode === 'dark'
-      ? '0 4px 12px rgba(0, 0, 0, 0.3)'
-      : '0 4px 12px rgba(0, 0, 0, 0.08)',
-}));
+// const VideoPreviewContainer = styled(Box)(({ theme }) => ({
+//   width: '100%',
+//   height: '300px',
+//   borderRadius: theme.spacing(2),
+//   overflow: 'hidden',
+//   backgroundColor: theme.palette.background.default,
+//   border: `2px solid ${theme.palette.divider}`,
+//   boxShadow:
+//     theme.palette.mode === 'dark'
+//       ? '0 4px 12px rgba(0, 0, 0, 0.3)'
+//       : '0 4px 12px rgba(0, 0, 0, 0.08)',
+// }));
 
-const VideoPreview = styled('video')({
-  width: '100%',
-  height: '100%',
-  objectFit: 'contain',
-});
+// const VideoPreview = styled('video')({
+//   width: '100%',
+//   height: '100%',
+//   objectFit: 'contain',
+// });
 
 const ButtonContainer = styled(Box)(({ theme }) => ({
   display: 'flex',
@@ -462,18 +462,18 @@ export const VideoMetadataDialog = ({
   const canConfirm = isFormValid && !isExtractingFrames && hasAnyThumbnail;
 
   // Determine the current poster image for the video preview
-  const videoPoster = (() => {
-    if (selectedThumbnailIndex === -1 && customThumbnail) {
-      return `data:image/webp;base64,${customThumbnail}`;
-    } else if (
-      selectedThumbnailIndex !== null &&
-      selectedThumbnailIndex >= 0 &&
-      extractedFrames[selectedThumbnailIndex]
-    ) {
-      return `data:image/webp;base64,${extractedFrames[selectedThumbnailIndex]}`;
-    }
-    return undefined;
-  })();
+  // const videoPoster = (() => {
+  //   if (selectedThumbnailIndex === -1 && customThumbnail) {
+  //     return `data:image/webp;base64,${customThumbnail}`;
+  //   } else if (
+  //     selectedThumbnailIndex !== null &&
+  //     selectedThumbnailIndex >= 0 &&
+  //     extractedFrames[selectedThumbnailIndex]
+  //   ) {
+  //     return `data:image/webp;base64,${extractedFrames[selectedThumbnailIndex]}`;
+  //   }
+  //   return undefined;
+  // })();
 
   return (
     <StyledDialog open={open} onClose={handleCancel} maxWidth="sm" fullWidth>

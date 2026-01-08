@@ -178,7 +178,7 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   }
 
   // Decrypt encrypted content inside the component (like example-app does)
-  const { decryptedContent, isDecrypting, decryptionFailed } =
+  const { decryptedContent, isDecrypting } =
     useDecryptArticle(data);
 
   const handleClick = () => {
@@ -200,7 +200,6 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   const isFullyEncrypted = isEncrypted && !hasPublicMetadata;
 
   // Show skeleton loader while decrypting ANY encrypted articles (full or partial)
-  // Show skeleton if: (1) currently decrypting OR (2) encrypted but no decrypted content yet AND decryption hasn't failed
   if (isEncrypted && isDecrypting) {
     return <LoaderItem />;
   }

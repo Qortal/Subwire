@@ -65,7 +65,7 @@ const NameDetails = styled('div')({
   overflow: 'hidden',
 });
 
-const ArrowIcon = styled(KeyboardArrowDownIcon)(({ theme }) => ({
+const ArrowIcon = styled(KeyboardArrowDownIcon)(() => ({
   transition: 'transform 0.2s ease',
   flexShrink: 0,
 }));

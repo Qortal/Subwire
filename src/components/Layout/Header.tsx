@@ -10,14 +10,12 @@ import {
   Menu,
   MenuItem,
   Avatar,
-  InputBase,
   Tooltip,
   CircularProgress,
   Chip,
   Divider,
 } from '@mui/material';
 import {
-  Search as SearchIcon,
   Edit as EditIcon,
   Person as PersonIcon,
   KeyboardArrowDown as ArrowDownIcon,
@@ -65,32 +63,6 @@ const Logo = styled(Link)(({ theme }) => ({
   [theme.breakpoints.down('sm')]: {
     fontSize: '1.25rem',
   },
-}));
-
-const SearchContainer = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
-  backgroundColor: theme.palette.mode === 'light' ? '#F3F4F6' : '#262626',
-  borderRadius: 10,
-  padding: theme.spacing(0.75, 2),
-  width: '100%',
-  maxWidth: 400,
-  transition: 'all 0.2s ease',
-  border: `1px solid ${theme.palette.divider}`,
-  '&:focus-within': {
-    backgroundColor: theme.palette.background.paper,
-    borderColor: theme.palette.primary.main,
-    boxShadow: `0 0 0 3px ${theme.palette.mode === 'light' ? 'rgba(99, 102, 241, 0.1)' : 'rgba(129, 140, 248, 0.15)'}`,
-  },
-  [theme.breakpoints.down('md')]: {
-    display: 'none',
-  },
-}));
-
-const StyledInputBase = styled(InputBase)(({ theme }) => ({
-  marginLeft: theme.spacing(1),
-  flex: 1,
-  color: theme.palette.text.primary,
 }));
 
 const NavButtons = styled(Box)(({ theme }) => ({
