@@ -10,6 +10,7 @@ import { QortalMetadata } from 'qapp-core';
 import { formatDistanceToNow } from 'date-fns';
 import { LazyImage } from './LazyImage';
 import { useDecryptArticle } from '../hooks/useDecryptArticle';
+import { LoaderItem } from './LoaderState';
 
 const StyledCard = styled(Card)(({ theme }) => ({
   display: 'flex',
@@ -112,7 +113,6 @@ interface ArticleCardProps {
 
 export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   const navigate = useNavigate();
-
   // Safety check: if no data, show a minimal card with author info
   if (!data) {
     console.warn(
@@ -195,6 +195,16 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   // Check if this is an encrypted article
   const isEncrypted = !!(data.encryptedContent && data.groupId);
 
+  // For fully encrypted articles, show skeleton while decrypting
+  const hasPublicMetadata = isEncrypted && !!data.title; // Partial encryption
+  const isFullyEncrypted = isEncrypted && !hasPublicMetadata;
+
+  // Show skeleton loader while decrypting ANY encrypted articles (full or partial)
+  // Show skeleton if: (1) currently decrypting OR (2) encrypted but no decrypted content yet AND decryption hasn't failed
+  if (isEncrypted && isDecrypting) {
+    return <LoaderItem />;
+  }
+
   // Merge decrypted content with original data (for partial encryption)
   const displayData =
     isEncrypted && decryptedContent
@@ -207,11 +217,6 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
           media: decryptedContent.media || data.media,
         }
       : data;
-
-  const hasPublicMetadata = isEncrypted && !!data.title; // Partial encryption
-
-  // For fully encrypted articles without public metadata
-  const isFullyEncrypted = isEncrypted && !hasPublicMetadata;
 
   // Use fallback values for encrypted content
   const displayTitle =

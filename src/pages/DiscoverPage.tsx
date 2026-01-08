@@ -352,6 +352,11 @@ export const DiscoverPage = () => {
 
   const listItem = useCallback(
     (item: { qortalMetadata: QortalMetadata; data: any }, _index: number) => {
+      if (
+        item.qortalMetadata.identifier ===
+        'iMOZFtoHIhiUIq-ZEFaGQ-znny5D-ZEFaGQ.1fVJp~z-KlUzE5y87FWP6vB-v1'
+      ) {
+      }
       return (
         <ArticleCard qortalMetadata={item.qortalMetadata} data={item.data} />
       );
@@ -796,7 +801,10 @@ export const DiscoverPage = () => {
               {getTabTitle()}
             </Typography>
 
-            {!searchPrefix || !episodeSearchPrefix ? (
+            {!searchPrefix ||
+            !episodeSearchPrefix ||
+            !groupEpisodeSearchPrefixes ||
+            !groupArticleSearchPrefixes ? (
               <Box
                 sx={{
                   display: 'flex',

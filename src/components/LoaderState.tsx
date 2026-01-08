@@ -157,10 +157,10 @@ export const LoaderItem = memo(function LoaderItem() {
       />
 
       {/* Content - right side */}
-      <Box 
-        sx={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
           gap: 1.5,
           padding: 2.5,
           flex: 1,
@@ -209,4 +209,3 @@ export const LoaderItem = memo(function LoaderItem() {
     </SkeletonArticleContainer>
   );
 });
-

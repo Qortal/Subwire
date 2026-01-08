@@ -33,7 +33,7 @@ export function buildQuitterArticleShareText(params: {
   identifier: string;
 }): string {
   const title = (params.title || '').trim();
-  const articleUrl = `qortal://APP/Perennial/article/${encodeURIComponent(params.authorName)}/${encodeURIComponent(params.identifier)}`;
+  const articleUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Perennial'}/article/${encodeURIComponent(params.authorName)}/${encodeURIComponent(params.identifier)}`;
 
   const base = `New publication: ${title}`;
   return `${base}\n\n${articleUrl}`.trim();

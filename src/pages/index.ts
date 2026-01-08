@@ -1,6 +1,5 @@
 export { HomePage } from './HomePage';
 export { DiscoverPage } from './DiscoverPage';
-export { PublicationPage } from './PublicationPage';
 export { ArticlePage } from './ArticlePage';
 export { WritePage } from './WritePage';
 export { PostTypeSelectionPage } from './PostTypeSelectionPage';

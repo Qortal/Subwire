@@ -46,7 +46,7 @@ import {
 } from '../utils/articleQdn';
 import { formatDistanceToNow } from 'date-fns';
 import { marked } from 'marked';
-import { SERVICE_DOCUMENT } from '../constants/qdn';
+import { SERVICE_DOCUMENT, useTestIdentifiers } from '../constants/qdn';
 import { useVideoMetadata } from '../hooks/useVideoMetadata';
 import { useAudioMetadata } from '../hooks/useAudioMetadata';
 import { AudioPlayerDisplay } from '../components/AudioPlayerDisplay';
@@ -540,7 +540,7 @@ export const ArticlePage = () => {
         );
         return;
       }
-      const articleUrl = `qortal://APP/Perennial/article/${encodeURIComponent(name)}/${encodeURIComponent(identifier)}`;
+      const articleUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Perennial'}/article/${encodeURIComponent(name)}/${encodeURIComponent(identifier)}`;
       await copyToClipboard(articleUrl);
       showSuccess('Link copied to clipboard!');
     } catch (error) {

@@ -39,9 +39,13 @@ interface UseDecryptArticleResult {
 export function useDecryptArticle(
   article: ArticleData | null
 ): UseDecryptArticleResult {
+  // Check if this is an encrypted article
+  const isEncryptedArticle = !!(article?.encryptedContent && article?.groupId);
+
   const [decryptedContent, setDecryptedContent] =
     useState<DecryptedArticleContent | null>(null);
-  const [isDecrypting, setIsDecrypting] = useState(false);
+  const [isDecrypting, setIsDecrypting] = useState(isEncryptedArticle);
+
   const [decryptionFailed, setDecryptionFailed] = useState(false);
   const [decryptionError, setDecryptionError] = useState<string | null>(null);
 
@@ -54,6 +58,7 @@ export function useDecryptArticle(
 
       // Check if this is an encrypted article
       if (!article?.encryptedContent || !article?.groupId) {
+        setIsDecrypting(false);
         return;
       }
 

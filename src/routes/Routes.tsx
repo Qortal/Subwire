@@ -4,7 +4,6 @@ import { Layout } from '../components/Layout';
 import {
   HomePage,
   DiscoverPage,
-  PublicationPage,
   ArticlePage,
   WritePage,
   PostTypeSelectionPage,

@@ -11,6 +11,7 @@ import {
   Tab,
   Skeleton,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import {
   Home as HomeIcon,
@@ -25,6 +26,7 @@ import {
   useGlobal,
   showError,
   showSuccess,
+  useCheckSubscriptionStatus,
 } from 'qapp-core';
 import {
   ENTITY_ARTICLE,
@@ -40,6 +42,7 @@ import { useGroupDetails } from '../hooks/useGroupDetails';
 import { EditProfileModal } from '../components/EditProfileModal';
 import { useAtom } from 'jotai';
 import { profileDataAtom, profileNameAtom } from '../state/global/profile';
+import { useTestIdentifiers } from '../constants/qdn';
 
 // Minimal header with just a home button
 const MinimalHeader = styled(Box)(({ theme }) => ({
@@ -225,6 +228,17 @@ export const ProfilePage = () => {
     profile?.groupId
   );
 
+  // Check subscription status for profiles that are not our own
+  const {
+    status,
+    isOwner,
+    loading: subscriptionLoading,
+  } = useCheckSubscriptionStatus({
+    address: auth?.address ?? null,
+    groupId: profile?.groupId ?? null,
+    enabled: !isOwnProfile && !!auth?.address && !!profile?.groupId,
+  });
+
   // Get avatar URL
   const avatarUrl = name
     ? `/arbitrary/THUMBNAIL/${name}/qortal_avatar?async=true`
@@ -246,7 +260,7 @@ export const ProfilePage = () => {
         showError('Failed to copy link. Please try again. Missing user name.');
         return;
       }
-      const profileUrl = `qortal://APP/Perennial/author/${encodeURIComponent(name)}`;
+      const profileUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Perennial'}/author/${encodeURIComponent(name)}`;
       await copyToClipboard(profileUrl);
       showSuccess('Profile link copied to clipboard!');
     } catch (error) {
@@ -254,6 +268,26 @@ export const ProfilePage = () => {
       showError('Failed to copy link. Please try again.');
     }
   }, [name]);
+
+  // Determine subscription button text based on status
+  const getSubscriptionButtonText = () => {
+    if (subscriptionLoading) {
+      return 'Loading...';
+    }
+    if (status === 'no-subscription') {
+      return 'No Subscription Available';
+    }
+    if (isOwner) {
+      return 'Owner';
+    }
+    if (status === 'subscribed-paid') {
+      return 'Subscribed';
+    }
+    if (status === 'subscribed-unpaid') {
+      return 'Payment Required';
+    }
+    return 'Subscribe';
+  };
 
   // Wait up to 3 seconds for profile to load before showing the list
   // This ensures encrypted content is included from the start if available
@@ -663,21 +697,43 @@ export const ProfilePage = () => {
           </Typography>
 
           {/* Subscriber count */}
-          {groupDetails && groupDetails.memberCount !== undefined && (
+          {!isOwnProfile && profile?.groupId && (
             <Box sx={{ mt: 2, display: 'flex', justifyContent: 'center' }}>
-              {isLoadingGroup ? (
+              {subscriptionLoading ? (
                 <Skeleton
                   variant="rectangular"
                   width={180}
                   height={32}
                   sx={{ borderRadius: 2 }}
                 />
-              ) : (
-                <SubscriberChip
-                  icon={<PeopleIcon />}
-                  label={`${groupDetails.memberCount} ${groupDetails.memberCount === 1 ? 'Subscriber' : 'Subscribers'}`}
+              ) : status === 'no-subscription' ? (
+                <Chip
+                  label="No Subscription"
+                  sx={{
+                    backgroundColor: (theme) =>
+                      theme.palette.mode === 'dark'
+                        ? 'rgba(255, 255, 255, 0.1)'
+                        : 'rgba(0, 0, 0, 0.05)',
+                    color: 'text.secondary',
+                    fontWeight: 500,
+                    fontSize: '0.875rem',
+                  }}
                 />
-              )}
+              ) : groupDetails && groupDetails.memberCount !== undefined ? (
+                isLoadingGroup ? (
+                  <Skeleton
+                    variant="rectangular"
+                    width={180}
+                    height={32}
+                    sx={{ borderRadius: 2 }}
+                  />
+                ) : (
+                  <SubscriberChip
+                    icon={<PeopleIcon />}
+                    label={`${groupDetails.memberCount} ${groupDetails.memberCount === 1 ? 'Subscriber' : 'Subscribers'}`}
+                  />
+                )
+              ) : null}
             </Box>
           )}
 
@@ -783,22 +839,89 @@ export const ProfilePage = () => {
               </>
             )}
             {!isOwnProfile && (
-              <IconButton
-                onClick={handleShare}
-                sx={{
-                  color: 'white',
-                  bgcolor: 'rgba(255, 255, 255, 0.2)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid rgba(255, 255, 255, 0.3)',
-                  width: { xs: 42, sm: 48 },
-                  height: { xs: 42, sm: 48 },
-                  '&:hover': {
-                    bgcolor: 'rgba(255, 255, 255, 0.3)',
-                  },
-                }}
-              >
-                <ShareIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
-              </IconButton>
+              <>
+                {/* Show Subscribe button skeleton while loading, button if available, or "No Subscription" text */}
+                {profile?.groupId && (
+                  <>
+                    {subscriptionLoading ? (
+                      <Skeleton
+                        variant="rectangular"
+                        width={200}
+                        height={48}
+                        sx={{ borderRadius: 2 }}
+                      />
+                    ) : status === 'no-subscription' ? (
+                      <Typography
+                        variant="body1"
+                        sx={{
+                          color: 'rgba(255, 255, 255, 0.7)',
+                          fontWeight: 500,
+                          fontSize: { xs: '0.875rem', sm: '1rem' },
+                        }}
+                      >
+                        No Subscription Available
+                      </Typography>
+                    ) : (
+                      <Button
+                        variant="contained"
+                        onClick={() => {
+                          qortalRequest({
+                            action: 'OPEN_NEW_TAB',
+                            qortalLink: useTestIdentifiers
+                              ? `qortal://APP/a-test/subscription/test-subscription-${profile?.groupId?.toString()}`
+                              : `qortal://APP/a-test/subscription/subscription-${profile?.groupId?.toString()}`,
+                          });
+                        }}
+                        disabled={subscriptionLoading || isOwner}
+                        startIcon={
+                          subscriptionLoading ? (
+                            <CircularProgress size={20} color="inherit" />
+                          ) : null
+                        }
+                        fullWidth={true}
+                        sx={{
+                          bgcolor: 'rgba(255, 255, 255, 0.2)',
+                          backdropFilter: 'blur(10px)',
+                          color: 'white',
+                          borderRadius: 2,
+                          px: { xs: 3, sm: 4 },
+                          py: { xs: 1.25, sm: 1.5 },
+                          fontSize: { xs: '0.875rem', sm: '1rem' },
+                          textTransform: 'none',
+                          fontWeight: 600,
+                          border: '1px solid rgba(255, 255, 255, 0.3)',
+                          maxWidth: { xs: '100%', sm: 'none' },
+                          '&:hover': {
+                            bgcolor: 'rgba(255, 255, 255, 0.3)',
+                          },
+                          '&:disabled': {
+                            bgcolor: 'rgba(255, 255, 255, 0.1)',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                          },
+                        }}
+                      >
+                        {getSubscriptionButtonText()}
+                      </Button>
+                    )}
+                  </>
+                )}
+                <IconButton
+                  onClick={handleShare}
+                  sx={{
+                    color: 'white',
+                    bgcolor: 'rgba(255, 255, 255, 0.2)',
+                    backdropFilter: 'blur(10px)',
+                    border: '1px solid rgba(255, 255, 255, 0.3)',
+                    width: { xs: 42, sm: 48 },
+                    height: { xs: 42, sm: 48 },
+                    '&:hover': {
+                      bgcolor: 'rgba(255, 255, 255, 0.3)',
+                    },
+                  }}
+                >
+                  <ShareIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
+                </IconButton>
+              </>
             )}
           </Box>
         </HeroContent>
