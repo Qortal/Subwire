@@ -333,6 +333,7 @@ export const DiscoverPage = () => {
     isLoadingGroupOwnerNames,
     memberGroups,
     groupOwnerNames,
+    selectedTab,
   ]);
 
   const loaderItem = useCallback(() => {
@@ -340,6 +341,7 @@ export const DiscoverPage = () => {
   }, []);
 
   const loaderList = useCallback((status: LoaderListStatus) => {
+    console.log('status', status);
     return (
       <LoaderState
         status={status}
@@ -471,7 +473,7 @@ export const DiscoverPage = () => {
             return { params };
           })
         );
-
+        console.log('groupArticleSearchPrefixes', groupArticleSearchPrefixes);
         // Add group episodes
         dataSources.push(
           ...groupEpisodeSearchPrefixes.map((prefix) => {
@@ -505,7 +507,7 @@ export const DiscoverPage = () => {
     searchQuery,
     searchNames,
   ]);
-
+  console.log('secondaryDataSources', secondaryDataSources);
   // Get tab title for display
   const getTabTitle = () => {
     switch (selectedTab) {
@@ -586,6 +588,18 @@ export const DiscoverPage = () => {
   console.log(
     'listname',
     `${tabs[selectedTab].toUpperCase().replace(/\s+/g, '_')}_ARTICLES`
+  );
+
+  console.log('search', search);
+
+  console.log(
+    'entity Param',
+    selectedTab === 2
+      ? undefined // Subscriptions tab uses only secondaryDataSources
+      : {
+          entityType: ENTITY_ARTICLE,
+          parentId: ENTITY_ROOT,
+        }
   );
 
   return (
@@ -699,7 +713,13 @@ export const DiscoverPage = () => {
           <Container maxWidth="lg" sx={{ px: { xs: 2, sm: 3 } }}>
             <Tabs
               value={selectedTab}
-              onChange={(_, newValue) => setSelectedTab(newValue)}
+              onChange={(_, newValue) => {
+                setSelectedTab(newValue);
+                setSearchPrefix(null);
+                setEpisodeSearchPrefix(null);
+                setGroupArticleSearchPrefixes(null);
+                setGroupEpisodeSearchPrefixes(null);
+              }}
               variant="scrollable"
               scrollButtons="auto"
               allowScrollButtonsMobile
@@ -806,60 +826,50 @@ export const DiscoverPage = () => {
               {getTabTitle()}
             </Typography>
 
-            {!searchPrefix ||
-            !episodeSearchPrefix ||
-            !groupEpisodeSearchPrefixes ||
-            !groupArticleSearchPrefixes ? (
-              <Box
-                sx={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  padding: 4,
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 2,
+                maxWidth: 900,
+                margin: '0 auto',
+                width: '100%',
+              }}
+            >
+              <ResourceListDisplay
+                styles={{
+                  gap: 20,
                 }}
-              >
-                <LoaderItem />
-              </Box>
-            ) : (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 2,
-                  maxWidth: 900,
-                  margin: '0 auto',
-                  width: '100%',
+                isLoading={
+                  !searchPrefix ||
+                  !episodeSearchPrefix ||
+                  !groupEpisodeSearchPrefixes ||
+                  !groupArticleSearchPrefixes
+                }
+                retryAttempts={3}
+                listName={`${tabs[selectedTab].toUpperCase().replace(/\s+/g, '_')}_ARTICLES`}
+                direction="VERTICAL"
+                disableVirtualization
+                disablePagination
+                returnType="JSON"
+                loaderList={loaderList}
+                entityParams={
+                  selectedTab === 2
+                    ? undefined // Subscriptions tab uses only secondaryDataSources
+                    : {
+                        entityType: ENTITY_ARTICLE,
+                        parentId: ENTITY_ROOT,
+                      }
+                }
+                search={search}
+                listItem={listItem}
+                loaderItem={loaderItem}
+                filterDuplicateIdentifiers={{
+                  enabled: true,
                 }}
-              >
-                <ResourceListDisplay
-                  styles={{
-                    gap: 20,
-                  }}
-                  retryAttempts={3}
-                  listName={`${tabs[selectedTab].toUpperCase().replace(/\s+/g, '_')}_ARTICLES`}
-                  direction="VERTICAL"
-                  disableVirtualization
-                  disablePagination
-                  returnType="JSON"
-                  loaderList={loaderList}
-                  entityParams={
-                    selectedTab === 2
-                      ? undefined // Subscriptions tab uses only secondaryDataSources
-                      : {
-                          entityType: ENTITY_ARTICLE,
-                          parentId: ENTITY_ROOT,
-                        }
-                  }
-                  search={search}
-                  listItem={listItem}
-                  loaderItem={loaderItem}
-                  filterDuplicateIdentifiers={{
-                    enabled: true,
-                  }}
-                  secondaryDataSources={secondaryDataSources}
-                />
-              </Box>
-            )}
+                secondaryDataSources={secondaryDataSources}
+              />
+            </Box>
           </>
         )}
       </Container>

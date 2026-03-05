@@ -25,7 +25,7 @@ export interface QuitterPost {
 }
 
 /**
- * Build a simple announcement text for sharing a Perennial article on Quitter.
+ * Build a simple announcement text for sharing a Subwire article on Quitter.
  */
 export function buildQuitterArticleShareText(params: {
   title: string;
@@ -33,7 +33,7 @@ export function buildQuitterArticleShareText(params: {
   identifier: string;
 }): string {
   const title = (params.title || '').trim();
-  const articleUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Perennial'}/article/${encodeURIComponent(params.authorName)}/${encodeURIComponent(params.identifier)}`;
+  const articleUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Subwire'}/article/${encodeURIComponent(params.authorName)}/${encodeURIComponent(params.identifier)}`;
 
   const base = `New publication: ${title}`;
   return `${base}\n\n${articleUrl}`.trim();

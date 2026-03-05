@@ -202,11 +202,40 @@ const PreviewContainer = styled(Box)(({ theme }) => ({
     lineHeight: 1.8,
     whiteSpace: 'pre-wrap',
   },
+  '& blockquote': {
+    borderLeft: `4px solid ${theme.palette.primary.main}`,
+    paddingLeft: theme.spacing(3),
+    marginLeft: 0,
+    marginBottom: theme.spacing(3),
+    fontStyle: 'italic',
+    color: theme.palette.text.secondary,
+  },
   '& img': {
     maxWidth: '100%',
     height: 'auto',
     borderRadius: theme.shape.borderRadius,
     margin: theme.spacing(2, 0),
+  },
+  '& code': {
+    backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#2a2a2a',
+    padding: '2px 6px',
+    borderRadius: 4,
+    fontFamily: 'monospace',
+    fontSize: '0.9em',
+  },
+  '& pre': {
+    backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#2a2a2a',
+    padding: theme.spacing(2),
+    borderRadius: theme.shape.borderRadius,
+    overflow: 'auto',
+    margin: theme.spacing(3, 0),
+    fontSize: '0.9rem',
+    lineHeight: 1.5,
+  },
+  '& pre code': {
+    padding: 0,
+    backgroundColor: 'transparent',
+    fontSize: 'inherit',
   },
 }));
 
@@ -291,10 +320,13 @@ export const EditArticlePage = () => {
   const [isPublishing, setIsPublishing] = useState(false);
   const [articleType, setArticleType] = useState<'essay' | 'episode'>('essay');
 
-  // Video/audio state for episodes
+  // Video/audio state for episodes (same shape as WritePage)
   const [existingMedia, setExistingMedia] = useState<ArticleMedia[]>([]);
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
-  const [mediaType, setMediaType] = useState<'audio' | 'video' | null>(null);
+  const [mediaFile, setMediaFile] = useState<{
+    file: File;
+    name: string;
+    type: 'audio' | 'video';
+  } | null>(null);
   const [videoMetadata, setVideoMetadata] = useState<VideoMetadata | null>(
     null
   );
@@ -311,7 +343,7 @@ export const EditArticlePage = () => {
   });
 
   const articleData = resource?.data as ArticleData | undefined;
-
+  console.log('articleData', articleData);
   // Decrypt encrypted article content (for private group articles)
   const { decryptedContent } = useDecryptArticle(articleData || null);
   const isEncryptedArticle =
@@ -348,6 +380,70 @@ export const EditArticlePage = () => {
   // Check if user is the author
   const isAuthor = auth?.name === name;
 
+  // Handler functions that need to be defined before hooks that use them
+  const handleCoverImageDrop = (files: File[]) => {
+    const file = files[0];
+    if (file && file.type.startsWith('image/')) {
+      setCoverImage(file);
+      const imageUrl = URL.createObjectURL(file);
+      setCoverImagePreview(imageUrl);
+    }
+  };
+
+  // Dropzone for cover image - MUST be before any conditional returns
+  const {
+    getRootProps: getCoverImageRootProps,
+    getInputProps: getCoverImageInputProps,
+    isDragActive: isCoverImageDragActive,
+  } = useDropzone({
+    onDrop: handleCoverImageDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
+    },
+    multiple: false,
+    noClick: false,
+  });
+
+  // Process media file (same pattern as WritePage) - used by drop and could be used by file input
+  const processMediaFile = (file: File) => {
+    const isVideo = file.type.startsWith('video/');
+    const isAudio = file.type.startsWith('audio/');
+
+    if (isVideo || isAudio) {
+      setMediaFile({
+        file,
+        name: file.name,
+        type: isVideo ? 'video' : 'audio',
+      });
+
+      // Open metadata dialog for video files only
+      if (isVideo) {
+        setShowMetadataDialog(true);
+      }
+    }
+  };
+
+  const handleMediaDrop = (acceptedFiles: File[]) => {
+    const file = acceptedFiles[0];
+    if (file) {
+      processMediaFile(file);
+    }
+  };
+
+  const {
+    getRootProps: getMediaRootProps,
+    getInputProps: getMediaInputProps,
+    isDragActive: isMediaDragActive,
+  } = useDropzone({
+    onDrop: handleMediaDrop,
+    accept: {
+      'video/*': ['.mp4', '.webm', '.ogg', '.mov', '.avi'],
+      'audio/*': ['.mp3', '.wav', '.ogg', '.m4a'],
+    },
+    multiple: false,
+    noClick: false,
+  });
+
   // Populate form with existing article data
   useEffect(() => {
     if (!articleData) return;
@@ -370,7 +466,7 @@ export const EditArticlePage = () => {
     setSubtitle(effectiveSubtitle);
     setArticleType(articleData.type || 'essay');
 
-    // Keep content with perennial-image:// references for editing
+    // Keep content with subwire-image:// references for editing
     setContent(effectiveContent);
     setHistory([effectiveContent]);
     lastSavedContentRef.current = effectiveContent;
@@ -447,22 +543,25 @@ export const EditArticlePage = () => {
       setIsPublishing(true);
       loadingId = showLoading('Updating article on Qortal blockchain...');
 
-      // Prepare media attachments for episodes
+      // Prepare media attachments for episodes (same logic as WritePage)
       let media: MediaAttachment[] = [];
-      if (articleType === 'episode') {
-        // Add new media if uploaded
-        if (mediaFile && videoMetadata) {
-          media.push({
-            type: mediaType || 'video',
-            file: mediaFile,
-            videoMetadata,
-          });
-        }
-        // Keep existing videos if no new media uploaded
-        else if (existingMedia.length > 0) {
-          // Don't need to include existing videos in media array
-          // They'll be preserved by the update
-        }
+      if (articleType === 'episode' && mediaFile) {
+        const isReplacingEncryptedMedia =
+          !!articleData?.groupId && existingMedia.length > 0;
+        media = [
+          {
+            type: mediaFile.type,
+            file: mediaFile.file,
+            videoMetadata:
+              mediaFile.type === 'video'
+                ? videoMetadata || undefined
+                : undefined,
+            ...(isReplacingEncryptedMedia && {
+              existingMedia: existingMedia[0],
+              replaceWithNewFile: true,
+            }),
+          },
+        ];
       }
 
       // Update article
@@ -470,6 +569,8 @@ export const EditArticlePage = () => {
         !!articleData?.groupId &&
         !!articleData?.encryptedContent &&
         !articleData?.title;
+
+      console.log('media', media);
 
       const resultIdentifier = await publishArticle({
         title,
@@ -489,8 +590,7 @@ export const EditArticlePage = () => {
           (articleData?.images as any) || (decryptedContent?.images as any),
         existingCoverImage:
           !coverImage && existingCoverImage ? existingCoverImage : undefined,
-        existingMedia:
-          articleType === 'episode' && !mediaFile ? existingMedia : undefined,
+        existingMedia: articleType === 'episode' ? existingMedia : undefined,
         groupId: articleData?.groupId,
         encryptMetadata: shouldEncryptMetadata,
         decryptedContent:
@@ -560,8 +660,49 @@ export const EditArticlePage = () => {
   const handleUnderline = () => applyFormatting('<u>', '</u>');
   const handleBulletList = () => applyFormatting('\n- ', '');
   const handleNumberedList = () => applyFormatting('\n1. ', '');
-  const handleQuote = () => applyFormatting('\n> ', '');
-  const handleCode = () => applyFormatting('`', '`');
+  const handleQuote = () => {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end);
+    const beforeText = content.substring(0, start);
+    const afterText = content.substring(end);
+    const needNewlineBefore = start > 0 && !beforeText.endsWith('\n');
+    const quoted =
+      selectedText.indexOf('\n') === -1
+        ? '> ' + selectedText
+        : selectedText.split('\n').map((line) => '> ' + line).join('\n');
+    const newText =
+      beforeText + (needNewlineBefore ? '\n' : '') + quoted + afterText;
+    setContent(newText);
+    setTimeout(() => {
+      textarea.focus();
+      const newEnd = start + (needNewlineBefore ? 1 : 0) + quoted.length;
+      textarea.setSelectionRange(newEnd, newEnd);
+    }, 0);
+  };
+  const handleCode = () => {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end);
+    const beforeText = content.substring(0, start);
+    const afterText = content.substring(end);
+    const fence = '\n```\n';
+    const newText = beforeText + fence + selectedText + fence + afterText;
+    setContent(newText);
+    setTimeout(() => {
+      textarea.focus();
+      const cursorInside = start + fence.length;
+      const cursorEnd = cursorInside + selectedText.length + fence.length;
+      textarea.setSelectionRange(
+        selectedText.length > 0 ? cursorEnd : cursorInside,
+        selectedText.length > 0 ? cursorEnd : cursorInside
+      );
+    }, 0);
+  };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -587,15 +728,6 @@ export const EditArticlePage = () => {
     }
   };
 
-  const handleCoverImageDrop = (files: File[]) => {
-    const file = files[0];
-    if (file && file.type.startsWith('image/')) {
-      setCoverImage(file);
-      const imageUrl = URL.createObjectURL(file);
-      setCoverImagePreview(imageUrl);
-    }
-  };
-
   const handleRemoveCoverImage = () => {
     if (coverImagePreview && coverImagePreview.startsWith('blob:')) {
       URL.revokeObjectURL(coverImagePreview);
@@ -605,27 +737,8 @@ export const EditArticlePage = () => {
     setExistingCoverImage('');
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      const isVideo = file.type.startsWith('video/');
-      const isAudio = file.type.startsWith('audio/');
-
-      if (isVideo || isAudio) {
-        setMediaFile(file);
-        setMediaType(isVideo ? 'video' : 'audio');
-
-        // Open metadata dialog for video files only
-        if (isVideo) {
-          setShowMetadataDialog(true);
-        }
-      }
-    }
-  };
-
   const handleRemoveMedia = () => {
     setMediaFile(null);
-    setMediaType(null);
     setVideoMetadata(null);
   };
 
@@ -635,9 +748,8 @@ export const EditArticlePage = () => {
 
   const handleCloseMetadataDialog = (saved: boolean) => {
     // If cancelled (not saved), remove the video file
-    if (!saved && mediaFile && mediaType === 'video') {
+    if (!saved && mediaFile?.type === 'video') {
       setMediaFile(null);
-      setMediaType(null);
     }
     setShowMetadataDialog(false);
   };
@@ -759,20 +871,6 @@ export const EditArticlePage = () => {
       </EditorContainer>
     );
   }
-
-  // Dropzone for cover image
-  const {
-    getRootProps: getCoverImageRootProps,
-    getInputProps: getCoverImageInputProps,
-    isDragActive: isCoverImageDragActive,
-  } = useDropzone({
-    onDrop: handleCoverImageDrop,
-    accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'],
-    },
-    multiple: false,
-    noClick: false,
-  });
 
   return (
     <EditorContainer>
@@ -982,9 +1080,15 @@ export const EditArticlePage = () => {
                     sx={{ p: 2, mb: 2, border: 1, borderColor: 'divider' }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      <VideocamIcon
-                        sx={{ fontSize: 40, color: 'primary.main' }}
-                      />
+                      {existingMedia[0].mimeType?.startsWith('audio/') ? (
+                        <AudioFileIcon
+                          sx={{ fontSize: 40, color: 'primary.main' }}
+                        />
+                      ) : (
+                        <VideocamIcon
+                          sx={{ fontSize: 40, color: 'primary.main' }}
+                        />
+                      )}
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="body1" fontWeight={600}>
                           Existing Media File
@@ -1004,7 +1108,7 @@ export const EditArticlePage = () => {
                     sx={{ p: 2, mb: 2, border: 1, borderColor: 'primary.main' }}
                   >
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                      {mediaType === 'video' ? (
+                      {mediaFile.type === 'video' ? (
                         <VideocamIcon
                           sx={{ fontSize: 40, color: 'primary.main' }}
                         />
@@ -1015,12 +1119,13 @@ export const EditArticlePage = () => {
                       )}
                       <Box sx={{ flex: 1 }}>
                         <Typography variant="body1" fontWeight={600}>
-                          New {mediaType === 'video' ? 'Video' : 'Audio'} File
+                          New {mediaFile.type === 'video' ? 'Video' : 'Audio'}{' '}
+                          File
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {mediaFile.name}
+                          {mediaFile.file.name}
                         </Typography>
-                        {mediaType === 'video' && !videoMetadata && (
+                        {mediaFile.type === 'video' && !videoMetadata && (
                           <Button
                             size="small"
                             variant="outlined"
@@ -1050,25 +1155,51 @@ export const EditArticlePage = () => {
                   </Paper>
                 )}
 
-                {/* Upload button */}
-                <Button
-                  variant="outlined"
-                  component="label"
-                  fullWidth
-                  sx={{ mb: 2 }}
+                {/* Upload button with drag and drop */}
+                <Box
+                  {...getMediaRootProps()}
+                  sx={{
+                    mb: 2,
+                    p: 3,
+                    border: 2,
+                    borderStyle: 'dashed',
+                    borderRadius: 2,
+                    borderColor: isMediaDragActive ? 'primary.main' : 'divider',
+                    backgroundColor: isMediaDragActive
+                      ? 'action.hover'
+                      : 'background.paper',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    textAlign: 'center',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      backgroundColor: 'action.hover',
+                    },
+                  }}
                 >
-                  {mediaFile
-                    ? 'Replace Media File'
-                    : existingMedia.length > 0
-                      ? 'Replace Media File'
-                      : 'Upload Media File'}
-                  <input
-                    type="file"
-                    accept="video/*,audio/*"
-                    hidden
-                    onChange={handleFileUpload}
+                  <input {...getMediaInputProps()} />
+                  <UploadIcon
+                    sx={{ fontSize: 40, color: 'primary.main', mb: 1 }}
                   />
-                </Button>
+                  <Typography variant="body1" fontWeight={600}>
+                    {isMediaDragActive
+                      ? 'Drop media file here'
+                      : mediaFile
+                        ? 'Replace Media File'
+                        : existingMedia.length > 0
+                          ? 'Replace Media File'
+                          : 'Upload Media File'}
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ mt: 0.5 }}
+                  >
+                    {isMediaDragActive
+                      ? ''
+                      : 'Click to browse or drag and drop your video/audio file here'}
+                  </Typography>
+                </Box>
               </Box>
             )}
 
@@ -1204,22 +1335,22 @@ export const EditArticlePage = () => {
               <Container maxWidth="md" sx={{ py: 4 }}>
                 <PreviewContainer>
                   {/* Show video preview for new video uploads */}
-                  {mediaFile && mediaType === 'video' && (
+                  {mediaFile && mediaFile.type === 'video' && (
                     <VideoPreviewStyled controls>
                       <source
-                        src={URL.createObjectURL(mediaFile)}
-                        type={mediaFile.type}
+                        src={URL.createObjectURL(mediaFile.file)}
+                        type={mediaFile.file.type}
                       />
                     </VideoPreviewStyled>
                   )}
 
                   {/* Show audio preview for new audio uploads */}
-                  {mediaFile && mediaType === 'audio' && (
+                  {mediaFile && mediaFile.type === 'audio' && (
                     <Box sx={{ mb: 3 }}>
                       <audio controls style={{ width: '100%' }}>
                         <source
-                          src={URL.createObjectURL(mediaFile)}
-                          type={mediaFile.type}
+                          src={URL.createObjectURL(mediaFile.file)}
+                          type={mediaFile.file.type}
                         />
                       </audio>
                     </Box>
@@ -1288,7 +1419,7 @@ export const EditArticlePage = () => {
                     <div
                       dangerouslySetInnerHTML={{
                         __html: (() => {
-                          // First restore perennial-image:// references with actual base64 data for preview
+                          // First restore subwire-image:// references with actual base64 data for preview
                           let previewContent = content;
                           const previewImages =
                             (articleData?.images as any[]) ||
@@ -1339,7 +1470,7 @@ export const EditArticlePage = () => {
         open={showMetadataDialog}
         onClose={handleCloseMetadataDialog}
         onSave={handleSaveMetadata}
-        videoFile={mediaFile}
+        videoFile={mediaFile?.file ?? null}
         isEncrypted={!!articleData?.groupId}
       />
     </EditorContainer>

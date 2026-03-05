@@ -2,6 +2,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogActions,
   TextField,
   Box,
   Typography,
@@ -67,11 +68,8 @@ const StyledDialogTitle = styled(DialogTitle)(({ theme }) => ({
 
 const StyledDialogContent = styled(DialogContent)(({ theme }) => ({
   padding: theme.spacing(3),
-  display: 'flex',
-  flexDirection: 'column',
+  paddingTop: `${theme.spacing(3)} !important`,
   gap: theme.spacing(2.5),
-  overflow: 'auto',
-  maxHeight: '70vh',
 }));
 
 // const VideoPreviewContainer = styled(Box)(({ theme }) => ({
@@ -92,14 +90,6 @@ const StyledDialogContent = styled(DialogContent)(({ theme }) => ({
 //   height: '100%',
 //   objectFit: 'contain',
 // });
-
-const ButtonContainer = styled(Box)(({ theme }) => ({
-  display: 'flex',
-  gap: theme.spacing(2),
-  justifyContent: 'flex-end',
-  paddingTop: theme.spacing(2),
-  borderTop: `1px solid ${theme.palette.divider}`,
-}));
 
 const ActionButton = styled('button')<{ variant?: 'primary' | 'secondary' }>(
   ({ theme, variant = 'secondary' }) => ({
@@ -269,7 +259,9 @@ export const VideoMetadataDialog = ({
   const [description, setDescription] = useState('');
   const [duration, setDuration] = useState<number | undefined>(undefined);
   const [extractedFrames, setExtractedFrames] = useState<string[]>([]);
-  const [selectedThumbnailIndex, setSelectedThumbnailIndex] = useState<number | null>(0);
+  const [selectedThumbnailIndex, setSelectedThumbnailIndex] = useState<
+    number | null
+  >(0);
   const [customThumbnail, setCustomThumbnail] = useState<string | null>(null);
   const [isExtractingFrames, setIsExtractingFrames] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<any>(null);
@@ -434,7 +426,7 @@ export const VideoMetadataDialog = ({
       URL.revokeObjectURL(videoPreview);
       setVideoPreview('');
     }
-    
+
     // Close dialog with saved=true
     onClose(true);
   };
@@ -456,9 +448,12 @@ export const VideoMetadataDialog = ({
     onClose(false);
   };
 
-  const isFormValid = isEncrypted ? true : (title.trim().length > 0 && selectedCategory !== null);
+  const isFormValid = isEncrypted
+    ? true
+    : title.trim().length > 0 && selectedCategory !== null;
   const hasAnyThumbnail =
-    (!!customThumbnail && customThumbnail.length > 0) || extractedFrames.length > 0;
+    (!!customThumbnail && customThumbnail.length > 0) ||
+    extractedFrames.length > 0;
   const canConfirm = isFormValid && !isExtractingFrames && hasAnyThumbnail;
 
   // Determine the current poster image for the video preview
@@ -584,7 +579,9 @@ export const VideoMetadataDialog = ({
 
             {selectedCategory && subCategories[selectedCategory.id] && (
               <FormControl fullWidth>
-                <InputLabel id="video-subcategory-label">Subcategory</InputLabel>
+                <InputLabel id="video-subcategory-label">
+                  Subcategory
+                </InputLabel>
                 <Select
                   labelId="video-subcategory-label"
                   value={selectedSubCategory?.id?.toString() || ''}
@@ -659,7 +656,9 @@ export const VideoMetadataDialog = ({
                   </>
                 ) : (
                   <CustomThumbnailContent>
-                    <AddPhotoAlternateIcon sx={{ fontSize: 32, opacity: 0.5 }} />
+                    <AddPhotoAlternateIcon
+                      sx={{ fontSize: 32, opacity: 0.5 }}
+                    />
                     <Typography variant="caption" sx={{ opacity: 0.7 }}>
                       Custom
                     </Typography>
@@ -677,27 +676,46 @@ export const VideoMetadataDialog = ({
             onChange={handleCustomThumbnailSelect}
           />
         </ThumbnailSection>
-
-        <ButtonContainer>
-          {isExtractingFrames && (
-            <InfoText sx={{ mr: 'auto', alignSelf: 'center' }}>
-              Generating thumbnails…
-            </InfoText>
-          )}
-          <ActionButton variant="secondary" onClick={handleCancel}>
-            <CloseIcon fontSize="small" />
-            Cancel
-          </ActionButton>
-          <ActionButton
-            variant="primary"
-            onClick={handleConfirm}
-            disabled={!canConfirm}
-          >
-            <CheckIcon fontSize="small" />
-            Add Video
-          </ActionButton>
-        </ButtonContainer>
       </StyledDialogContent>
+
+      <DialogActions
+        sx={{
+          padding: 3,
+          paddingTop: 0,
+          gap: 2,
+          flexWrap: 'wrap',
+          '& button': {
+            minWidth: 'auto',
+            whiteSpace: 'nowrap',
+          },
+          '@media (max-width: 600px)': {
+            padding: 2,
+            gap: 1.5,
+            '& button': {
+              flex: 1,
+              minWidth: '100px',
+              fontSize: '14px',
+              padding: '8px 16px',
+            },
+          },
+        }}
+      >
+        {isExtractingFrames && (
+          <InfoText sx={{ mr: 'auto' }}>Generating thumbnails…</InfoText>
+        )}
+        <ActionButton variant="secondary" onClick={handleCancel}>
+          <CloseIcon fontSize="small" />
+          Cancel
+        </ActionButton>
+        <ActionButton
+          variant="primary"
+          onClick={handleConfirm}
+          disabled={!canConfirm}
+        >
+          <CheckIcon fontSize="small" />
+          Add Video
+        </ActionButton>
+      </DialogActions>
     </StyledDialog>
   );
 };

@@ -18,7 +18,7 @@ export const AppWrapper = () => {
   return (
     <GlobalProvider
       config={{
-        appName: useTestIdentifiers ? 'perennial-dev' : 'perennial', // change to your own
+        appName: useTestIdentifiers ? 'perennial-dev' : 'subwire',
         auth: {
           balanceSetting: {
             interval: 180000,

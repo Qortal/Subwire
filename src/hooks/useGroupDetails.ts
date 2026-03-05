@@ -43,7 +43,10 @@ export function useGroupDetails(groupId: number | null | undefined) {
         }
 
         const data = await response.json();
-        setGroupDetails(data);
+        const copiedData = structuredClone(data);
+        const memberCount = copiedData?.memberCount - 1;
+        copiedData.memberCount = memberCount;
+        setGroupDetails(copiedData);
       } catch (err) {
         console.error('Error fetching group details:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch group');
@@ -62,4 +65,3 @@ export function useGroupDetails(groupId: number | null | undefined) {
     error,
   };
 }
-

@@ -1,4 +1,4 @@
-// QDN constants for Perennial
+// QDN constants for Subwire
 export const SERVICE_DOCUMENT = 'DOCUMENT';
 export const SERVICE_VIDEO = 'VIDEO';
 export const SERVICE_AUDIO = 'AUDIO';
@@ -20,7 +20,7 @@ export const GROUP_PRIVATE = 'GROUP_PRIVATE';
 export const GROUP_VIDEO_PRIVATE = 'GROUP_VIDEO_PRIVATE';
 
 // Video publishing constants
-export const useTestIdentifiers = true;
+export const useTestIdentifiers = false;
 
 export const QTUBE_VIDEO_BASE = useTestIdentifiers
   ? 'MYTEST3_vid_'

@@ -48,7 +48,7 @@ export const Footer = () => {
         }}>
           <Box>
             <Typography variant="h6" gutterBottom fontWeight={600}>
-              Perennial
+              Subwire
             </Typography>
             <Typography variant="body2" color="text.secondary">
               A home for writers and readers. Share your thoughts and discover
@@ -123,7 +123,7 @@ export const Footer = () => {
           }}
         >
           <Typography variant="body2" color="text.secondary">
-            © {new Date().getFullYear()} Perennial. All rights reserved.
+            © {new Date().getFullYear()} Subwire. All rights reserved.
           </Typography>
         </Box>
       </Container>

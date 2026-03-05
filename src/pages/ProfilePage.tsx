@@ -13,6 +13,8 @@ import {
   Chip,
   CircularProgress,
 } from '@mui/material';
+import WarningIcon from '@mui/icons-material/Warning';
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
 import {
   Home as HomeIcon,
   Share as ShareIcon,
@@ -82,7 +84,7 @@ const HomeButton = styled(IconButton)(({ theme }) => ({
 
 // Hero section with author info
 const HeroSection = styled(Box)(({ theme }) => ({
-  minHeight: 400,
+  height: 500,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -106,7 +108,7 @@ const HeroSection = styled(Box)(({ theme }) => ({
     pointerEvents: 'none',
   },
   [theme.breakpoints.down('sm')]: {
-    minHeight: 320,
+    height: 560,
     paddingTop: theme.spacing(6),
     paddingBottom: theme.spacing(6),
   },
@@ -205,6 +207,7 @@ export const ProfilePage = () => {
     string | null
   >(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [coverImageLoaded, setCoverImageLoaded] = useState(false);
 
   // State to control when to show the list (wait for profile groupId check)
   const [isReadyToShowList, setIsReadyToShowList] = useState(false);
@@ -235,10 +238,11 @@ export const ProfilePage = () => {
     loading: subscriptionLoading,
   } = useCheckSubscriptionStatus({
     address: auth?.address ?? null,
+    name: auth?.name ?? null,
     groupId: profile?.groupId ?? null,
     enabled: !isOwnProfile && !!auth?.address && !!profile?.groupId,
   });
-
+  console.log('subscription status', status);
   // Get avatar URL
   const avatarUrl = name
     ? `/arbitrary/THUMBNAIL/${name}/qortal_avatar?async=true`
@@ -260,7 +264,7 @@ export const ProfilePage = () => {
         showError('Failed to copy link. Please try again. Missing user name.');
         return;
       }
-      const profileUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Perennial'}/author/${encodeURIComponent(name)}`;
+      const profileUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Subwire'}/author/${encodeURIComponent(name)}`;
       await copyToClipboard(profileUrl);
       showSuccess('Profile link copied to clipboard!');
     } catch (error) {
@@ -288,6 +292,18 @@ export const ProfilePage = () => {
     }
     return 'Subscribe';
   };
+
+  // Preload cover image and fade it in once loaded
+  useEffect(() => {
+    if (!profile?.coverImage) {
+      setCoverImageLoaded(false);
+      return;
+    }
+    setCoverImageLoaded(false);
+    const img = new window.Image();
+    img.src = profile.coverImage;
+    img.onload = () => setCoverImageLoaded(true);
+  }, [profile?.coverImage]);
 
   // Wait up to 3 seconds for profile to load before showing the list
   // This ensures encrypted content is included from the start if available
@@ -658,16 +674,22 @@ export const ProfilePage = () => {
       </MinimalHeader>
 
       {/* Hero section with author info */}
-      <HeroSection
-        sx={{
-          backgroundImage: profile?.coverImage
-            ? `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${profile.coverImage})`
-            : undefined,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
-      >
+      <HeroSection>
+        {profile?.coverImage && (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              backgroundImage: `linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), url(${profile.coverImage})`,
+              backgroundSize: 'cover',
+              backgroundPosition: 'center',
+              backgroundRepeat: 'no-repeat',
+              opacity: coverImageLoaded ? 1 : 0,
+              transition: 'opacity 0.9s ease',
+              zIndex: 0,
+            }}
+          />
+        )}
         <HeroContent>
           <StyledAvatar src={avatarUrl} alt={name}>
             {name?.charAt(0).toUpperCase()}
@@ -691,6 +713,11 @@ export const ProfilePage = () => {
               margin: '0 auto',
               px: 2,
               fontSize: { xs: '1rem', sm: '1.25rem' },
+              minHeight: '1.5em',
+              overflow: 'hidden',
+              display: '-webkit-box',
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: 'vertical',
             }}
           >
             {profile?.bio || ''}
@@ -900,6 +927,24 @@ export const ProfilePage = () => {
                           },
                         }}
                       >
+                        {status === 'subscribed-unpaid' && (
+                          <WarningIcon
+                            sx={{
+                              fontSize: 20,
+                              color: 'warning.main',
+                              marginRight: '5px',
+                            }}
+                          />
+                        )}
+                        {status === 'subscribed-paid' && (
+                          <CheckCircleOutlineIcon
+                            sx={{
+                              fontSize: 20,
+                              color: 'success.main',
+                              marginRight: '5px',
+                            }}
+                          />
+                        )}
                         {getSubscriptionButtonText()}
                       </Button>
                     )}
@@ -1152,7 +1197,7 @@ export const ProfilePage = () => {
               </Typography>
               <Typography variant="body1" sx={{ lineHeight: 1.8, mt: 3 }}>
                 {profile?.bio ||
-                  `This is ${name}'s personal space on Perennial. Check back for new articles and updates.`}
+                  `This is ${name}'s personal space on Subwire. Check back for new articles and updates.`}
               </Typography>
             </Box>
           )}

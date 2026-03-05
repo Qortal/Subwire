@@ -224,9 +224,18 @@ const StyledAvatar = styled(Avatar)(() => ({
 
 const ArticleContent = styled(Box)(({ theme }) => ({
   width: '100%',
+  minWidth: 0, // allow shrinking in flex so content can wrap
+  overflowWrap: 'break-word',
+  wordBreak: 'break-word',
+  overflow: 'hidden',
   fontSize: '1.125rem',
   lineHeight: 1.8,
   color: theme.palette.text.primary,
+  '& *': {
+    maxWidth: '100%',
+    overflowWrap: 'break-word',
+    wordBreak: 'break-word',
+  },
   '& p': {
     marginBottom: theme.spacing(3),
   },
@@ -255,6 +264,20 @@ const ArticleContent = styled(Box)(({ theme }) => ({
     borderRadius: 4,
     fontFamily: 'monospace',
     fontSize: '0.9em',
+  },
+  '& pre': {
+    backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#2a2a2a',
+    padding: theme.spacing(2),
+    borderRadius: theme.shape.borderRadius,
+    overflow: 'auto',
+    margin: theme.spacing(3, 0),
+    fontSize: '0.9rem',
+    lineHeight: 1.5,
+  },
+  '& pre code': {
+    padding: 0,
+    backgroundColor: 'transparent',
+    fontSize: 'inherit',
   },
   '& img': {
     maxWidth: '100%',
@@ -445,7 +468,7 @@ export const ArticlePage = () => {
   // Disable like button if user is not logged in or is the article author (can't like your own article)
   const cannotLike = !auth?.name || auth?.name === name;
 
-  // Process content to restore images from perennial-image:// references and convert Markdown to HTML
+  // Process content to restore images from subwire-image:// references and convert Markdown to HTML
   const processedContent = useMemo(() => {
     if (!displayArticleData?.content) return '';
 
@@ -454,6 +477,15 @@ export const ArticlePage = () => {
     if (displayArticleData?.images && displayArticleData.images.length > 0) {
       content = restoreImagesForDisplay(content, displayArticleData.images);
     }
+
+    // Normalize smart quotes used as code delimiters (e.g. 'word' or 'word') to backticks so they render as inline code
+    const BACKTICK = '\u0060';
+    const LEFT_SINGLE = '\u2018';
+    const RIGHT_SINGLE = '\u2019';
+    content = content.replace(
+      new RegExp(`([${LEFT_SINGLE}${RIGHT_SINGLE}])([^\\s${LEFT_SINGLE}${RIGHT_SINGLE}]+)\\1`, 'g'),
+      `${BACKTICK}$2${BACKTICK}`
+    );
 
     // Then, convert Markdown to HTML
     return marked.parse(content, {
@@ -548,7 +580,7 @@ export const ArticlePage = () => {
         );
         return;
       }
-      const articleUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Perennial'}/article/${encodeURIComponent(name)}/${encodeURIComponent(identifier)}`;
+      const articleUrl = `qortal://APP/${useTestIdentifiers ? 'a-test-2' : 'Subwire'}/article/${encodeURIComponent(name)}/${encodeURIComponent(identifier)}`;
       await copyToClipboard(articleUrl);
       showSuccess('Link copied to clipboard!');
     } catch (error) {

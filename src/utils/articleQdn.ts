@@ -40,9 +40,9 @@ function createEncryptionParams() {
 }
 
 // Article entity identifiers
-export const ENTITY_ROOT = 'PERENNIAL_ROOT';
-export const ENTITY_ARTICLE = 'PERENNIAL_ARTICLE';
-export const ENTITY_EPISODE = 'PERENNIAL_EPISODE';
+export const ENTITY_ROOT = 'SUBWIRE_ROOT';
+export const ENTITY_ARTICLE = 'SUBWIRE_ARTICLE';
+export const ENTITY_EPISODE = 'SUBWIRE_EPISODE';
 export const ENTITY_AUDIO = 'ARTICLE_AUDIO';
 
 // Group encrypted content identifiers
@@ -126,8 +126,8 @@ export async function processArticleImages(
 
   if (existingImages && existingImages.length > 0) {
     imageReferences.forEach((ref) => {
-      if (ref.startsWith('perennial-image://')) {
-        const index = parseInt(ref.replace('perennial-image://', ''), 10);
+      if (ref.startsWith('subwire-image://')) {
+        const index = parseInt(ref.replace('subwire-image://', ''), 10);
         if (!isNaN(index) && index < existingImages.length) {
           referencedExistingIndices.add(index);
         }
@@ -145,19 +145,19 @@ export async function processArticleImages(
         images.push(existingImages[oldIndex]);
       });
 
-    // Update perennial-image:// references with new indices
+    // Update subwire-image:// references with new indices
     oldToNewIndexMap.forEach((newIndex, oldIndex) => {
       processedContent = processedContent.replace(
-        new RegExp(`perennial-image://${oldIndex}`, 'g'),
-        `perennial-image://${newIndex}`
+        new RegExp(`subwire-image://${oldIndex}`, 'g'),
+        `subwire-image://${newIndex}`
       );
     });
   }
 
   // Process new images (blob URLs)
   for (const imageRef of imageReferences) {
-    // Skip existing perennial-image:// references - already handled above
-    if (imageRef.startsWith('perennial-image://')) {
+    // Skip existing subwire-image:// references - already handled above
+    if (imageRef.startsWith('subwire-image://')) {
       continue;
     }
 
@@ -193,7 +193,7 @@ export async function processArticleImages(
         // This allows us to reconstruct the image URLs when rendering
         processedContent = processedContent.replace(
           imageRef,
-          `perennial-image://${images.length - 1}`
+          `subwire-image://${images.length - 1}`
         );
       }
     }
@@ -204,7 +204,7 @@ export async function processArticleImages(
 
 /**
  * Restore images for rendering
- * Converts perennial-image:// references back to data URLs
+ * Converts subwire-image:// references back to data URLs
  */
 export function restoreImagesForDisplay(
   content: string,
@@ -216,9 +216,9 @@ export function restoreImagesForDisplay(
     // Create data URL from base64
     const dataUrl = `data:image/webp;base64,${image.src}`;
 
-    // Replace perennial-image reference with actual data URL
+    // Replace subwire-image reference with actual data URL
     restoredContent = restoredContent.replace(
-      `perennial-image://${index}`,
+      `subwire-image://${index}`,
       dataUrl
     );
   });
@@ -297,6 +297,8 @@ export interface MediaAttachment {
   videoMetadata?: VideoMetadata;
   // For existing media when editing (not new uploads)
   existingMedia?: ArticleMedia;
+  // When true and existingMedia is set (encrypted only), publish new file/metadata to same identifier (update in place)
+  replaceWithNewFile?: boolean;
 }
 
 /**
@@ -314,7 +316,7 @@ export interface ArticleMedia {
 export interface Article {
   title: string;
   subtitle?: string;
-  content: string; // Markdown content with perennial-image:// references
+  content: string; // Markdown content with subwire-image:// references
   coverImage: ArticleImage; // Required cover image for all article types
   images?: ArticleImage[]; // Additional Base64 images array from content
   media?: ArticleMedia[]; // Video/audio references for episodes
@@ -425,6 +427,7 @@ export async function publishArticle({
   decryptedContent,
 }: PublishArticleParams): Promise<string> {
   try {
+    console.log('existingMedia', existingMedia, media);
     if (!userName) {
       throw new Error('A Qortal name is required to publish');
     }
@@ -528,13 +531,17 @@ export async function publishArticle({
         let keptMediaIdentifiers = new Set<string>();
 
         if (media && media.length > 0) {
-          // If new media is provided, check which existing media are in it
+          // New media provided: only kept if explicitly included with existingMedia ref
           const existingMediaAttachments = media.filter((m) => m.existingMedia);
           keptMediaIdentifiers = new Set(
             existingMediaAttachments.map((m) => m.existingMedia!.identifier)
           );
+        } else {
+          // No new media provided: keep all existing media (text-only update)
+          keptMediaIdentifiers = new Set(
+            originalMedia.map((m) => m.identifier)
+          );
         }
-        // If media is undefined or empty, that means ALL media are being removed
 
         // Find media that were in the original article but are not being kept
         const removedMedia = originalMedia.filter(
@@ -562,16 +569,277 @@ export async function publishArticle({
       }
     }
 
-    // Separate existing media and new media uploads
+    // Check for removed videos/audios in public articles (when updating)
+    // For public articles, use existingMedia parameter
+    if (
+      existingIdentifier &&
+      !groupId &&
+      existingMedia &&
+      existingMedia.length > 0
+    ) {
+      // Determine which media items are being kept
+      let keptMediaIdentifiers = new Set<string>();
+
+      if (media && media.length > 0) {
+        // New media provided: only kept if explicitly included with existingMedia ref
+        const existingMediaAttachments = media.filter((m) => m.existingMedia);
+        keptMediaIdentifiers = new Set(
+          existingMediaAttachments.map((m) => m.existingMedia!.identifier)
+        );
+      } else {
+        // No new media provided: keep all existing media (text-only update)
+        keptMediaIdentifiers = new Set(existingMedia.map((m) => m.identifier));
+      }
+
+      // Find media that were in existingMedia but are not being kept
+      const removedMedia = existingMedia.filter(
+        (item) => !keptMediaIdentifiers.has(item.identifier)
+      );
+      console.log(
+        'removedMedia',
+        removedMedia,
+        existingMedia,
+        keptMediaIdentifiers
+      );
+      // Add removed video/audio resources (both metadata and file) to deletion list
+      for (const removedItem of removedMedia) {
+        // Add the metadata document deletion to resources array (identifier is the _metadata one for video)
+        resources.push({
+          name: removedItem.name,
+          service: SERVICE_DOCUMENT,
+          identifier: removedItem.identifier,
+          data64: 'RA==', // Special value to mark resource for deletion
+        });
+
+        // For public video: file identifier has no "_metadata" suffix; for public audio: same identifier as doc
+        const isAudio = removedItem.mimeType?.startsWith('audio/');
+        const fileIdentifier = !isAudio && removedItem.identifier.endsWith('_metadata')
+          ? removedItem.identifier.slice(0, -'_metadata'.length)
+          : removedItem.identifier;
+        resources.push({
+          name: removedItem.name,
+          service: isAudio ? SERVICE_AUDIO : SERVICE_VIDEO,
+          identifier: fileIdentifier,
+          data64: 'RA==', // Special value to mark resource for deletion
+        });
+      }
+    }
+
+    // Separate existing media, replacements (encrypted update-in-place), and new media uploads
     if (media && media.length > 0) {
       const existingMediaAttachments = media.filter((m) => m.existingMedia);
       const newMediaUploads = media.filter((m) => !m.existingMedia);
-
-      // Start with existing media
-      if (existingMediaAttachments.length > 0) {
-        mediaItems.push(
-          ...existingMediaAttachments.map((m) => m.existingMedia!)
+      // Encrypted only: same identifier, new content (DOCUMENT + FILE overwritten)
+      const replacementAttachments =
+        groupId &&
+        existingMediaAttachments.filter(
+          (m) => m.replaceWithNewFile && m.file && m.existingMedia
         );
+      const keptUnchangedAttachments =
+        existingMediaAttachments.filter((m) => !m.replaceWithNewFile);
+
+      // Start with existing media that is unchanged
+      if (keptUnchangedAttachments.length > 0) {
+        mediaItems.push(
+          ...keptUnchangedAttachments.map((m) => m.existingMedia!)
+        );
+      }
+
+      // Process encrypted video/audio replacements (same DOCUMENT + FILE identifier, new content)
+      for (const attachment of replacementAttachments || []) {
+        const existingIdentifier = attachment.existingMedia!.identifier;
+
+        if (attachment.type === 'audio') {
+          const audioTitle =
+            attachment.videoMetadata?.title || attachment.file.name;
+          const audioDescription =
+            attachment.videoMetadata?.description || '';
+          const audioDuration = attachment.videoMetadata?.duration;
+
+          const audioMetadataDoc: AudioMetadataDocument = {
+            title: audioTitle,
+            version: 1,
+            description: audioDescription,
+            audioReference: {
+              name: userName,
+              identifier: existingIdentifier,
+              service: SERVICE_FILE,
+            },
+            mimeType: attachment.file.type,
+            filename: attachment.file.name,
+            fileSize: attachment.file.size,
+            duration: audioDuration,
+          };
+
+          let metadataBase64 = await objectToBase64(audioMetadataDoc);
+          const { key, iv } = createEncryptionParams();
+          const encryptionKey = bytesToBase64(key);
+          const encryptionIv = bytesToBase64(iv);
+
+          try {
+            metadataBase64 = await qortalRequest({
+              action: 'ENCRYPT_QORTAL_GROUP_DATA',
+              groupId,
+              base64: metadataBase64,
+            });
+          } catch (error: any) {
+            if (error?.message?.includes('No group key found')) {
+              throw new Error(
+                'This group does not have encryption keys configured. Please create the group encrypted keys in Qortal Chat.'
+              );
+            }
+            if (
+              error?.message?.includes('encrypt') ||
+              error?.error?.includes('encrypt')
+            ) {
+              throw new Error(
+                'This group does not have encryption keys configured. Please use a group with encryption enabled.'
+              );
+            }
+            throw error;
+          }
+
+          resources.push({
+            identifier: existingIdentifier,
+            service: SERVICE_FILE,
+            file: attachment.file,
+            name: userName,
+            encryption: {
+              encryptionType: 'streamed-v1',
+              iv: encryptionIv,
+              key: encryptionKey,
+            },
+          });
+
+          resources.push({
+            identifier: existingIdentifier,
+            service: SERVICE_DOCUMENT,
+            base64: metadataBase64,
+            name: userName,
+          });
+
+          videoTempResources.push({
+            qortalMetadata: {
+              name: userName,
+              service: SERVICE_DOCUMENT,
+              identifier: existingIdentifier,
+              created: Date.now(),
+            },
+            data: metadataBase64,
+          });
+
+          mediaItems.push({
+            identifier: existingIdentifier,
+            service: SERVICE_DOCUMENT,
+            name: userName,
+            mimeType: attachment.file.type,
+            key: encryptionKey,
+            iv: encryptionIv,
+          });
+        } else {
+          // Video replacement
+          if (!attachment.videoMetadata) {
+            throw new Error('Video metadata is required');
+          }
+
+          const videoTitle =
+            attachment.videoMetadata.title || attachment.file.name;
+          const videoDescription =
+            attachment.videoMetadata.description || '';
+
+          const videoMetadataDoc: VideoMetadataDocument = {
+            title: videoTitle,
+            version: 1,
+            htmlDescription: videoDescription,
+            fullDescription: stripHtmlTags(videoDescription),
+            videoReference: {
+              name: userName,
+              identifier: existingIdentifier,
+              service: SERVICE_FILE,
+            },
+            videoType: attachment.file.type,
+            filename: attachment.file.name,
+            fileSize: attachment.file.size,
+            duration: attachment.videoMetadata.duration || 0,
+            category: attachment.videoMetadata.category,
+            ...(attachment.videoMetadata.videoImage && {
+              videoImage: attachment.videoMetadata.videoImage,
+            }),
+            ...(attachment.videoMetadata.extracts &&
+              attachment.videoMetadata.extracts.length > 0 && {
+                extracts: attachment.videoMetadata.extracts,
+              }),
+            ...(attachment.videoMetadata.subcategory && {
+              subcategory: attachment.videoMetadata.subcategory,
+            }),
+          };
+
+          let metadataBase64 = await objectToBase64(videoMetadataDoc);
+          const { key, iv } = createEncryptionParams();
+          const encryptionKey = bytesToBase64(key);
+          const encryptionIv = bytesToBase64(iv);
+
+          try {
+            metadataBase64 = await qortalRequest({
+              action: 'ENCRYPT_QORTAL_GROUP_DATA',
+              groupId,
+              base64: metadataBase64,
+            });
+          } catch (error: any) {
+            if (error?.message?.includes('No group key found')) {
+              throw new Error(
+                'This group does not have encryption keys configured. Please create the group encrypted keys in Qortal Chat.'
+              );
+            }
+            if (
+              error?.message?.includes('encrypt') ||
+              error?.error?.includes('encrypt')
+            ) {
+              throw new Error(
+                'This group does not have encryption keys configured. Please use a group with encryption enabled.'
+              );
+            }
+            throw error;
+          }
+
+          resources.push({
+            identifier: existingIdentifier,
+            service: SERVICE_FILE,
+            file: attachment.file,
+            name: userName,
+            encryption: {
+              encryptionType: 'streamed-v1',
+              iv: encryptionIv,
+              key: encryptionKey,
+            },
+          });
+
+          resources.push({
+            identifier: existingIdentifier,
+            service: SERVICE_DOCUMENT,
+            base64: metadataBase64,
+            name: userName,
+          });
+
+          videoTempResources.push({
+            qortalMetadata: {
+              name: userName,
+              service: SERVICE_DOCUMENT,
+              identifier: existingIdentifier,
+              created: Date.now(),
+            },
+            data: metadataBase64,
+          });
+
+          mediaItems.push({
+            identifier: existingIdentifier,
+            service: SERVICE_DOCUMENT,
+            name: userName,
+            mimeType: attachment.file.type,
+            key: encryptionKey,
+            iv: encryptionIv,
+          });
+        }
       }
 
       // Process new video/audio uploads
@@ -970,7 +1238,7 @@ export async function publishArticle({
     const article: Article = {
       title,
       subtitle,
-      content: processedContent, // Content with perennial-image:// references
+      content: processedContent, // Content with subwire-image:// references
       coverImage: coverImageData, // Required cover image for all types
       images: images.length > 0 ? images : undefined, // Additional images from content
       media: mediaItems.length > 0 ? mediaItems : undefined, // Video/audio references for episodes
@@ -1076,10 +1344,11 @@ export async function publishArticle({
       service: SERVICE_DOCUMENT,
       name: userName,
       data64: articleBase64,
-      title: truncatedTitle,
-      description: description,
+      // Don't publish title/description when metadata is encrypted
+      title: encryptMetadata ? '' : truncatedTitle,
+      description: encryptMetadata ? '' : description,
     });
-
+    console.log('resources', resources);
     // Publish using publishMultipleResources (same pattern as example app)
     await publishMultipleResources(resources);
 
@@ -1211,10 +1480,9 @@ export async function publishArticle({
 /**
  * Delete an article from the Qortal blockchain
  *
- * This function deletes the article using the QortalMetadata object directly.
+ * This function deletes the article and any attached videos/audios (both public and encrypted).
  * The deleteResource function from lists will handle the actual deletion.
  * Note: Images are stored as base64 in the article, so they don't need separate deletion.
- * Videos/audios for encrypted articles need to be deleted separately.
  *
  * @param articleMetadata - The QortalMetadata of the article to delete
  * @param article - The article data
@@ -1272,33 +1540,31 @@ export async function deleteArticle(
         console.error('Failed to decrypt article for media deletion:', error);
       }
     } else if (article.media && Array.isArray(article.media)) {
-      // For public articles, only delete audios (not QTube videos)
-      // Audios are article-specific, but QTube videos exist independently
+      // For public articles, delete all attached media (videos and audios)
       for (const mediaItem of article.media) {
-        // Check if it's an audio by looking at mimeType or service
         const isAudio = mediaItem.mimeType?.startsWith('audio/');
 
-        if (isAudio) {
-          // Add the metadata document to deletion list
-          resourcesToDelete.push({
-            name: mediaItem.name,
-            service: SERVICE_DOCUMENT,
-            identifier: mediaItem.identifier,
-            created: 0,
-            size: 0,
-          });
+        // Add the metadata document to deletion list
+        resourcesToDelete.push({
+          name: mediaItem.name,
+          service: SERVICE_DOCUMENT,
+          identifier: mediaItem.identifier,
+          created: 0,
+          size: 0,
+        });
 
-          // Add the audio file to deletion list
-          resourcesToDelete.push({
-            name: mediaItem.name,
-            service: SERVICE_AUDIO,
-            identifier: mediaItem.identifier,
-            created: 0,
-            size: 0,
-          });
-        }
-        // Note: We intentionally don't delete public QTube videos
-        // as they exist independently on QTube
+        // Public video: file identifier has no "_metadata" suffix; public audio: same identifier as doc
+        const fileIdentifier =
+          !isAudio && mediaItem.identifier.endsWith('_metadata')
+            ? mediaItem.identifier.slice(0, -'_metadata'.length)
+            : mediaItem.identifier;
+        resourcesToDelete.push({
+          name: mediaItem.name,
+          service: isAudio ? SERVICE_AUDIO : SERVICE_VIDEO,
+          identifier: fileIdentifier,
+          created: 0,
+          size: 0,
+        });
       }
     }
 

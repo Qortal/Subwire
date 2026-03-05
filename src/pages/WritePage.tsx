@@ -292,11 +292,40 @@ const PreviewContainer = styled(Box)(({ theme }) => ({
     lineHeight: 1.8,
     whiteSpace: 'pre-wrap',
   },
+  '& blockquote': {
+    borderLeft: `4px solid ${theme.palette.primary.main}`,
+    paddingLeft: theme.spacing(3),
+    marginLeft: 0,
+    marginBottom: theme.spacing(3),
+    fontStyle: 'italic',
+    color: theme.palette.text.secondary,
+  },
   '& img': {
     maxWidth: '100%',
     height: 'auto',
     borderRadius: theme.shape.borderRadius,
     margin: theme.spacing(2, 0),
+  },
+  '& code': {
+    backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#2a2a2a',
+    padding: '2px 6px',
+    borderRadius: 4,
+    fontFamily: 'monospace',
+    fontSize: '0.9em',
+  },
+  '& pre': {
+    backgroundColor: theme.palette.mode === 'light' ? '#f5f5f5' : '#2a2a2a',
+    padding: theme.spacing(2),
+    borderRadius: theme.shape.borderRadius,
+    overflow: 'auto',
+    margin: theme.spacing(3, 0),
+    fontSize: '0.9rem',
+    lineHeight: 1.5,
+  },
+  '& pre code': {
+    padding: 0,
+    backgroundColor: 'transparent',
+    fontSize: 'inherit',
   },
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(2, 0),
@@ -807,8 +836,49 @@ export const WritePage = () => {
   const handleUnderline = () => applyFormatting('<u>', '</u>');
   const handleBulletList = () => applyFormatting('\n- ', '');
   const handleNumberedList = () => applyFormatting('\n1. ', '');
-  const handleQuote = () => applyFormatting('\n> ', '');
-  const handleCode = () => applyFormatting('`', '`');
+  const handleQuote = () => {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end);
+    const beforeText = content.substring(0, start);
+    const afterText = content.substring(end);
+    const needNewlineBefore = start > 0 && !beforeText.endsWith('\n');
+    const quoted =
+      selectedText.indexOf('\n') === -1
+        ? '> ' + selectedText
+        : selectedText.split('\n').map((line) => '> ' + line).join('\n');
+    const newText =
+      beforeText + (needNewlineBefore ? '\n' : '') + quoted + afterText;
+    setContent(newText);
+    setTimeout(() => {
+      textarea.focus();
+      const newEnd = start + (needNewlineBefore ? 1 : 0) + quoted.length;
+      textarea.setSelectionRange(newEnd, newEnd);
+    }, 0);
+  };
+  const handleCode = () => {
+    const textarea = contentRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = content.substring(start, end);
+    const beforeText = content.substring(0, start);
+    const afterText = content.substring(end);
+    const fence = '\n```\n';
+    const newText = beforeText + fence + selectedText + fence + afterText;
+    setContent(newText);
+    setTimeout(() => {
+      textarea.focus();
+      const cursorInside = start + fence.length;
+      const cursorEnd = cursorInside + selectedText.length + fence.length;
+      textarea.setSelectionRange(
+        selectedText.length > 0 ? cursorEnd : cursorInside,
+        selectedText.length > 0 ? cursorEnd : cursorInside
+      );
+    }, 0);
+  };
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
