@@ -1,4 +1,4 @@
-import React, { FC } from 'react';
+import React, { FC, useEffect } from 'react';
 import { ThemeProvider } from '@emotion/react';
 import { lightTheme, darkTheme } from './theme';
 import { CssBaseline } from '@mui/material';
@@ -11,6 +11,13 @@ interface ThemeProviderWrapperProps {
 
 const ThemeProviderWrapper: FC<ThemeProviderWrapperProps> = ({ children }) => {
   const [theme] = useAtom(themeAtom);
+
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      'data-theme',
+      theme === EnumTheme.LIGHT ? 'light' : 'dark'
+    );
+  }, [theme]);
 
   return (
     <ThemeProvider theme={theme === EnumTheme.LIGHT ? lightTheme : darkTheme}>

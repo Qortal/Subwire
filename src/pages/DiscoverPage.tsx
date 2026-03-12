@@ -160,7 +160,7 @@ const EmptyState = styled(Box)(({ theme }) => ({
   color: theme.palette.text.secondary,
 }));
 
-const tabs = ['All', 'Only public', 'Subscriptions'];
+const tabs = ['All', 'Only public', 'Your Subscriptions'];
 
 type SearchType = 'publications' | 'names';
 
@@ -354,11 +354,6 @@ export const DiscoverPage = () => {
 
   const listItem = useCallback(
     (item: { qortalMetadata: QortalMetadata; data: any }, _index: number) => {
-      if (
-        item.qortalMetadata.identifier ===
-        'iMOZFtoHIhiUIq-ZEFaGQ-znny5D-ZEFaGQ.1fVJp~z-KlUzE5y87FWP6vB-v1'
-      ) {
-      }
       return (
         <ArticleCard qortalMetadata={item.qortalMetadata} data={item.data} />
       );

@@ -25,7 +25,7 @@ import {
   MoreVert as MoreVertIcon,
   Add as AddIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useGlobal, showError, showSuccess, usePublish } from 'qapp-core';
 import { ENTITY_ARTICLE, ENTITY_ROOT } from '../utils/articleQdn';
 import { formatDistanceToNow } from 'date-fns';
@@ -81,6 +81,7 @@ interface ArticleData {
 
 export const MyPublicationsPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { auth, identifierOperations, lists } = useGlobal();
   const [selectedArticle, setSelectedArticle] = useState<any>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -167,7 +168,9 @@ export const MyPublicationsPage = () => {
   };
 
   const handleCardClick = (article: any) => {
-    navigate(`/article/${auth?.name}/${article.identifier}`);
+    navigate(`/article/${auth?.name}/${article.identifier}`, {
+      state: { from: location.pathname },
+    });
   };
 
   if (!auth?.name) {

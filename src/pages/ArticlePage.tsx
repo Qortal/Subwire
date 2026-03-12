@@ -26,7 +26,7 @@ import {
   Delete as DeleteIcon,
   Lock as LockIcon,
 } from '@mui/icons-material';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import {
   usePublish,
   useGlobal,
@@ -47,6 +47,7 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { marked } from 'marked';
 import { SERVICE_DOCUMENT, useTestIdentifiers } from '../constants/qdn';
+import { processLinks } from '../utils/processLinks';
 import { useVideoMetadata } from '../hooks/useVideoMetadata';
 import { useAudioMetadata } from '../hooks/useAudioMetadata';
 import { AudioPlayerDisplay } from '../components/AudioPlayerDisplay';
@@ -54,6 +55,12 @@ import { useHasLiked } from '../hooks/useHasLiked';
 import { useLikeCount } from '../hooks/useLikeCount';
 import { copyToClipboard } from '../utils/clipboard';
 import { useDecryptArticle } from '../hooks/useDecryptArticle';
+
+declare const qortalRequest: (params: {
+  action: string;
+  qortalLink?: string;
+  groupId?: number;
+}) => Promise<unknown>;
 
 // Minimal header with just a back button
 const MinimalHeader = styled(Box)(({ theme }) => ({
@@ -286,6 +293,16 @@ const ArticleContent = styled(Box)(({ theme }) => ({
     margin: theme.spacing(3, 0),
     borderRadius: theme.spacing(1),
   },
+  '& a': {
+    color: theme.palette.mode === 'light' ? '#0f7ae5' : '#5eaeff',
+    textDecoration: 'none',
+    borderBottom: `1px solid ${theme.palette.mode === 'light' ? 'rgba(15, 122, 229, 0.4)' : 'rgba(94, 174, 255, 0.4)'}`,
+    transition: 'color 0.2s ease, border-color 0.2s ease',
+    '&:hover': {
+      color: theme.palette.mode === 'light' ? '#0a5cb8' : '#91c8ff',
+      borderBottomColor: theme.palette.mode === 'light' ? '#0a5cb8' : '#91c8ff',
+    },
+  },
 }));
 
 const ActionBar = styled(Box)(({ theme }) => ({
@@ -391,6 +408,13 @@ interface ArticleData {
 
 export const ArticlePage = () => {
   const navigate = useNavigate();
+  const location = useLocation() as {
+    state?: { from?: string };
+    key: string;
+    pathname: string;
+    search: string;
+    hash: string;
+  };
   const { name, identifier } = useParams<{
     name: string;
     identifier: string;
@@ -483,15 +507,19 @@ export const ArticlePage = () => {
     const LEFT_SINGLE = '\u2018';
     const RIGHT_SINGLE = '\u2019';
     content = content.replace(
-      new RegExp(`([${LEFT_SINGLE}${RIGHT_SINGLE}])([^\\s${LEFT_SINGLE}${RIGHT_SINGLE}]+)\\1`, 'g'),
+      new RegExp(
+        `([${LEFT_SINGLE}${RIGHT_SINGLE}])([^\\s${LEFT_SINGLE}${RIGHT_SINGLE}]+)\\1`,
+        'g'
+      ),
       `${BACKTICK}$2${BACKTICK}`
     );
 
-    // Then, convert Markdown to HTML
-    return marked.parse(content, {
+    // Then, convert Markdown to HTML and process bare URLs
+    const html = marked.parse(content, {
       breaks: true, // Support line breaks
       gfm: true, // GitHub Flavored Markdown
     });
+    return processLinks(html as string);
   }, [displayArticleData?.content, displayArticleData?.images]);
 
   const handleLike = useCallback(async () => {
@@ -557,14 +585,10 @@ export const ArticlePage = () => {
   ]);
 
   const handleBack = () => {
-    // Check if there's navigation history by checking window.history.length
-    // If user came here directly (refresh or direct link), go to author's profile
-    // Otherwise, go back in history
-    if (window.history.length <= 2) {
-      // No meaningful history, navigate to author's profile
-      navigate(`/author/${name}`);
+    if (location.state?.from) {
+      navigate(location.state.from);
     } else {
-      navigate(-1);
+      navigate(`/author/${name}`);
     }
   };
 
@@ -1001,9 +1025,75 @@ export const ArticlePage = () => {
                 >
                   If you are a member, please wait for the group keys to sync.
                 </Typography>
+                {articleData.groupId != null && (
+                  <Button
+                    variant="contained"
+                    size="large"
+                    onClick={() => {
+                      qortalRequest({
+                        action: 'OPEN_NEW_TAB',
+                        qortalLink: useTestIdentifiers
+                          ? `qortal://APP/a-test/subscription/test-subscription-${articleData.groupId}`
+                          : `qortal://APP/Subscriptions/subscription/subscription-${articleData.groupId}`,
+                      });
+                    }}
+                    sx={{
+                      mt: 3,
+                      textTransform: 'none',
+                      fontWeight: 600,
+                      px: 3,
+                      py: 1.5,
+                    }}
+                  >
+                    Subscribe
+                  </Button>
+                )}
               </EncryptedContentContainer>
             ) : (
-              <ArticleContent>
+              <ArticleContent
+                onClick={(e) => {
+                  const target = e.target as HTMLElement;
+                  const link = target.closest('a');
+                  if (!link) return;
+
+                  const qortalHref = link.getAttribute('data-qortal-href');
+                  if (qortalHref) {
+                    e.preventDefault();
+
+                    // Handle qortal://use-group/action-join/groupid-NNN
+                    if (qortalHref.startsWith('qortal://use-')) {
+                      const withoutScheme = qortalHref.replace(/^qortal:\/\//, '');
+                      const parts = withoutScheme.split('/');
+                      // parts[0] = "use-group", parts[1] = "action-join", parts[2] = "groupid-NNN"
+                      const actionPart = parts[1]; // e.g. "action-join"
+                      const idPart = parts[2];     // e.g. "groupid-820"
+                      const action = actionPart?.split('-')[1]; // "join"
+                      const groupId = idPart ? parseInt(idPart.split('-')[1], 10) : NaN;
+
+                      if (action === 'join' && !isNaN(groupId)) {
+                        qortalRequest({ action: 'JOIN_GROUP', groupId }).catch(console.error);
+                        return;
+                      }
+                    }
+
+                    // All other qortal:// links — open in new tab
+                    qortalRequest({
+                      action: 'OPEN_NEW_TAB',
+                      qortalLink: qortalHref,
+                    }).catch(console.error);
+                    return;
+                  }
+
+                  // Regular external links — copy to clipboard on click
+                  const href = link.getAttribute('href');
+                  if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+                    e.preventDefault();
+                    copyToClipboard(href)
+                      .then(() => showSuccess('Link copied to clipboard!'))
+                      .catch(console.error);
+                  }
+                }}
+              >
                 <div dangerouslySetInnerHTML={{ __html: processedContent }} />
               </ArticleContent>
             )}

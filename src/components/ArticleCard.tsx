@@ -5,7 +5,7 @@ import {
   AudiotrackOutlined as AudioIcon,
   Lock as LockIcon,
 } from '@mui/icons-material';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { QortalMetadata } from 'qapp-core';
 import { formatDistanceToNow } from 'date-fns';
 import { LazyImage } from './LazyImage';
@@ -113,6 +113,8 @@ interface ArticleCardProps {
 
 export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
   // Safety check: if no data, show a minimal card with author info
   if (!data) {
     console.warn(
@@ -123,7 +125,8 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
       <StyledCard
         onClick={() =>
           navigate(
-            `/publication/${qortalMetadata.name}/${qortalMetadata.identifier}`
+            `/publication/${qortalMetadata.name}/${qortalMetadata.identifier}`,
+            { state: { from: location.pathname } }
           )
         }
         elevation={0}
@@ -178,12 +181,12 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
   }
 
   // Decrypt encrypted content inside the component (like example-app does)
-  const { decryptedContent, isDecrypting } =
-    useDecryptArticle(data);
+  const { decryptedContent, isDecrypting } = useDecryptArticle(data);
 
   const handleClick = () => {
     navigate(
-      `/publication/${qortalMetadata.name}/${qortalMetadata.identifier}`
+      `/publication/${qortalMetadata.name}/${qortalMetadata.identifier}`,
+      { state: { from: location.pathname } }
     );
   };
 
@@ -216,7 +219,6 @@ export const ArticleCard = ({ qortalMetadata, data }: ArticleCardProps) => {
           media: decryptedContent.media || data.media,
         }
       : data;
-
   // Use fallback values for encrypted content
   const displayTitle =
     displayData.title || (isEncrypted ? 'Subscription Content' : 'Untitled');

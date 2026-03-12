@@ -327,6 +327,16 @@ const PreviewContainer = styled(Box)(({ theme }) => ({
     backgroundColor: 'transparent',
     fontSize: 'inherit',
   },
+  '& a': {
+    color: theme.palette.mode === 'light' ? '#0f7ae5' : '#5eaeff',
+    textDecoration: 'none',
+    borderBottom: `1px solid ${theme.palette.mode === 'light' ? 'rgba(15, 122, 229, 0.4)' : 'rgba(94, 174, 255, 0.4)'}`,
+    transition: 'color 0.2s ease, border-color 0.2s ease',
+    '&:hover': {
+      color: theme.palette.mode === 'light' ? '#0a5cb8' : '#91c8ff',
+      borderBottomColor: theme.palette.mode === 'light' ? '#0a5cb8' : '#91c8ff',
+    },
+  },
   [theme.breakpoints.down('sm')]: {
     padding: theme.spacing(2, 0),
     '& h1': {
@@ -418,6 +428,9 @@ export const WritePage = () => {
     authorName: string;
     identifier: string;
   } | null>(null);
+
+  // Publish options dialog (shown before publishing when user has a subscription group)
+  const [publishOptionsOpen, setPublishOptionsOpen] = useState(false);
 
   // Get profile data to check for attached group
   const profileData = useAtomValue(profileDataAtom);
@@ -637,29 +650,28 @@ export const WritePage = () => {
     }
   };
 
-  const handlePublish = async () => {
+  const validatePublish = (): boolean => {
     if (!title.trim()) {
       showError('Please enter a title for your article');
-      return;
+      return false;
     }
 
     if (!content.trim()) {
       showError('Please add content to your article');
-      return;
+      return false;
     }
 
     if (!coverImage) {
       showError('Please upload a cover image');
-      return;
+      return false;
     }
 
     if (type === 'episode' && !mediaFile) {
       showError('Please upload an audio or video file for your episode');
-      return;
+      return false;
     }
 
     // Video metadata is only required for PUBLIC videos, not encrypted ones
-
     if (
       type === 'episode' &&
       mediaFile?.type === 'video' &&
@@ -667,18 +679,36 @@ export const WritePage = () => {
       !videoMetadata
     ) {
       showError('Please add metadata for your video');
-      return;
+      return false;
     }
 
     if (!auth?.name) {
       showError('Please authenticate with a Qortal name to publish');
-      return;
+      return false;
     }
 
-    if (!auth?.name || !identifierOperations) {
+    if (!identifierOperations) {
       showError('Authentication required');
-      return;
+      return false;
     }
+
+    return true;
+  };
+
+  const handlePublish = () => {
+    if (!validatePublish()) return;
+
+    if (hasSubscriptionGroup) {
+      setPublishOptionsOpen(true);
+    } else {
+      handleConfirmPublish();
+    }
+  };
+
+  const handleConfirmPublish = async () => {
+    setPublishOptionsOpen(false);
+
+    if (!auth?.name || !identifierOperations) return;
 
     let loadingId: string | undefined;
 
@@ -730,7 +760,6 @@ export const WritePage = () => {
             'Error deleting draft (article was published successfully):',
             error
           );
-          // Don't show error to user - article was published successfully
         }
       }
 
@@ -1312,148 +1341,6 @@ export const WritePage = () => {
               />
             </EditorToolbar>
 
-            {hasSubscriptionGroup && (
-              <Box
-                sx={{
-                  mb: 3,
-                  p: { xs: 1.5, sm: 2 },
-                  borderRadius: 2,
-                  backgroundColor: (theme) =>
-                    theme.palette.mode === 'dark'
-                      ? 'rgba(29, 155, 240, 0.1)'
-                      : 'rgba(29, 155, 240, 0.05)',
-                  border: (theme) => `1px solid ${theme.palette.divider}`,
-                }}
-              >
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    gap: { xs: 1, sm: 0 },
-                  }}
-                >
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <LockIcon fontSize="small" color="primary" />
-                    <Typography
-                      variant="subtitle2"
-                      fontWeight={600}
-                      sx={{ fontSize: { xs: '0.875rem', sm: '0.875rem' } }}
-                    >
-                      Subscription Content
-                    </Typography>
-                    <Tooltip title="Publish this article encrypted for your subscription group members only">
-                      <InfoIcon fontSize="small" color="action" />
-                    </Tooltip>
-                  </Box>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={isEncrypted}
-                        onChange={(e) =>
-                          handleEncryptionToggle(e.target.checked)
-                        }
-                        color="primary"
-                      />
-                    }
-                    label={isEncrypted ? 'Encrypted' : 'Public'}
-                    sx={{
-                      '& .MuiTypography-root': {
-                        fontSize: { xs: '0.875rem', sm: '1rem' },
-                      },
-                    }}
-                  />
-                </Box>
-
-                {/* Metadata Encryption Toggle - Only shown when content is encrypted */}
-                {isEncrypted && (
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 1,
-                      p: { xs: 1.5, sm: 2 },
-                      backgroundColor: 'background.paper',
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      mt: 2,
-                    }}
-                  >
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        flexDirection: { xs: 'column', sm: 'row' },
-                        gap: { xs: 1, sm: 0 },
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 1,
-                          flexWrap: 'wrap',
-                        }}
-                      >
-                        <Typography
-                          variant="body2"
-                          fontWeight={500}
-                          sx={{ fontSize: { xs: '0.8rem', sm: '0.875rem' } }}
-                        >
-                          Also encrypt title, subtitle & cover image
-                        </Typography>
-                        <Tooltip title="By default, title, subtitle and cover image remain public for discovery. Enable this to encrypt everything.">
-                          <InfoIcon fontSize="small" color="action" />
-                        </Tooltip>
-                      </Box>
-                      <FormControlLabel
-                        control={
-                          <Switch
-                            checked={encryptMetadata}
-                            onChange={(e) =>
-                              handleMetadataEncryptionToggle(e.target.checked)
-                            }
-                            color="primary"
-                            size="small"
-                          />
-                        }
-                        label=""
-                        sx={{ m: 0 }}
-                      />
-                    </Box>
-                    <Alert
-                      severity={encryptMetadata ? 'warning' : 'info'}
-                      sx={{ py: 0.5 }}
-                    >
-                      <Typography
-                        variant="caption"
-                        sx={{ fontSize: { xs: '0.7rem', sm: '0.75rem' } }}
-                      >
-                        {encryptMetadata
-                          ? 'Article will be completely encrypted.'
-                          : 'Title, subtitle and cover will be visible to everyone for discovery. Only content will be encrypted.'}
-                      </Typography>
-                    </Alert>
-                  </Box>
-                )}
-
-                {isEncrypted && groupDetails && (
-                  <Box sx={{ mt: 1.5 }}>
-                    <Alert severity="info" sx={{ py: 0.5 }}>
-                      <Typography variant="caption">
-                        Only members of{' '}
-                        <strong>{groupDetails.groupName}</strong> (
-                        {groupDetails.memberCount || 0} subscribers) will be
-                        able to read this article
-                      </Typography>
-                    </Alert>
-                  </Box>
-                )}
-              </Box>
-            )}
 
             {/* Media File Upload - Required for episodes */}
             {type === 'episode' && (
@@ -1879,6 +1766,149 @@ export const WritePage = () => {
         videoFile={mediaFile?.file || null}
         isEncrypted={isEncrypted}
       />
+
+      {/* Publish options dialog - shown before publishing when user has a subscription group */}
+      <Dialog
+        open={publishOptionsOpen}
+        onClose={() => setPublishOptionsOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
+            <LockIcon color="primary" />
+            <Typography variant="h6" fontWeight={700}>
+              Publishing Options
+            </Typography>
+          </Box>
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText sx={{ mb: 3 }}>
+            Choose how you'd like to publish this article.
+          </DialogContentText>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Public / Encrypted toggle */}
+            <Box
+              sx={{
+                p: 2,
+                borderRadius: 2,
+                backgroundColor: (theme) =>
+                  theme.palette.mode === 'dark'
+                    ? 'rgba(29, 155, 240, 0.1)'
+                    : 'rgba(29, 155, 240, 0.05)',
+                border: (theme) => `1px solid ${theme.palette.divider}`,
+              }}
+            >
+              <Box
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <LockIcon fontSize="small" color="primary" />
+                  <Typography variant="subtitle2" fontWeight={600}>
+                    Subscription Content
+                  </Typography>
+                  <Tooltip title="Publish this article encrypted for your subscription group members only">
+                    <InfoIcon fontSize="small" color="action" />
+                  </Tooltip>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={isEncrypted}
+                      onChange={(e) => handleEncryptionToggle(e.target.checked)}
+                      color="primary"
+                    />
+                  }
+                  label={isEncrypted ? 'Encrypted' : 'Public'}
+                />
+              </Box>
+
+              {/* Metadata encryption sub-toggle */}
+              {isEncrypted && (
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 1,
+                    p: 2,
+                    backgroundColor: 'background.paper',
+                    borderRadius: 2,
+                    border: '1px solid',
+                    borderColor: 'divider',
+                    mt: 2,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+                      <Typography variant="body2" fontWeight={500}>
+                        Also encrypt title, subtitle & cover image
+                      </Typography>
+                      <Tooltip title="By default, title, subtitle and cover image remain public for discovery. Enable this to encrypt everything.">
+                        <InfoIcon fontSize="small" color="action" />
+                      </Tooltip>
+                    </Box>
+                    <FormControlLabel
+                      control={
+                        <Switch
+                          checked={encryptMetadata}
+                          onChange={(e) =>
+                            handleMetadataEncryptionToggle(e.target.checked)
+                          }
+                          color="primary"
+                          size="small"
+                        />
+                      }
+                      label=""
+                      sx={{ m: 0 }}
+                    />
+                  </Box>
+                  <Alert severity={encryptMetadata ? 'warning' : 'info'} sx={{ py: 0.5 }}>
+                    <Typography variant="caption">
+                      {encryptMetadata
+                        ? 'Article will be completely encrypted.'
+                        : 'Title, subtitle and cover will be visible to everyone for discovery. Only content will be encrypted.'}
+                    </Typography>
+                  </Alert>
+                </Box>
+              )}
+
+              {isEncrypted && groupDetails && (
+                <Box sx={{ mt: 1.5 }}>
+                  <Alert severity="info" sx={{ py: 0.5 }}>
+                    <Typography variant="caption">
+                      Only members of{' '}
+                      <strong>{groupDetails.groupName}</strong> (
+                      {groupDetails.memberCount || 0} subscribers) will be able
+                      to read this article
+                    </Typography>
+                  </Alert>
+                </Box>
+              )}
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setPublishOptionsOpen(false)}>Cancel</Button>
+          <Button
+            onClick={handleConfirmPublish}
+            variant="contained"
+            startIcon={<Publish />}
+          >
+            Publish
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Quitter share dialog (after successful publish) */}
       <Dialog

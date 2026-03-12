@@ -73,6 +73,7 @@ export function useDecryptArticle(
 
         // Parse the decrypted content
         // The decrypted content is base64 encoded JSON
+
         const jsonString = decodeURIComponent(escape(atob(decrypted)));
         const parsedContent = JSON.parse(jsonString);
 
